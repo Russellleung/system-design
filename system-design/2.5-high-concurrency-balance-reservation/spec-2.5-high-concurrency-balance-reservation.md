@@ -152,6 +152,72 @@ COMMIT;
 If a user hits "Pay" at exactly `12:15:00.000` (the exact millisecond the Expiry worker clicks over), the **Reservation Row** itself acts as the serialization barrier. The `SELECT FOR UPDATE` on the Reservation table ensures only one transaction obtains the lock! 
 Either the User API gets the lock, transitions `ACTIVE -> CONSUMED`, and succeeds... OR the Expiry worker gets the lock, transitions `ACTIVE -> EXPIRED`, and the User API subsequently sees the new state and gracefully fails. 
 
+### Consume / Seller Settlement
+
+When a reservation is consumed, the money should no longer sit in the buyer's reserved balance. If the seller also has an internal wallet, the consume operation settles the reserved amount into the seller's available balance.
+
+Conceptually:
+
+```text
+Reserve:
+buyer available -> buyer reserved
+
+Consume:
+buyer reserved  -> seller available
+```
+
+If buyer and seller accounts are on the same shard, settlement is one local database transaction:
+
+```text
+BEGIN
+  lock reservation row
+  lock buyer and seller accounts in sorted account_id order
+
+  if reservation.status != ACTIVE:
+      rollback
+
+  buyer.reserved    -= amount
+  buyer.total       -= amount
+  seller.available  += amount
+  seller.total      += amount
+
+  debit buyer reserved wallet
+  credit seller available wallet
+
+  reservation.status = CONSUMED
+  write outbox event: ReservationConsumed
+COMMIT
+```
+
+If buyer and seller accounts are on different shards, the settlement uses the same orchestration plus suspense pattern as cross-shard wallet transfers:
+
+```text
+Transfer Orchestrator
+    |
+    | leg 1 on buyer shard
+    v
+debit buyer reserved
+credit outgoing settlement suspense
+    |
+    | leg 2 on seller shard
+    v
+debit incoming settlement suspense
+credit seller available
+```
+
+The orchestrator records a durable `settlement_id`, retries each leg with stable idempotency keys, and exposes states such as:
+
+```text
+PENDING
+BUYER_RESERVED_DEBITED
+SELLER_CREDITED
+COMPLETED
+FAILED
+COMPENSATING
+```
+
+The suspense accounts are local platform accounts on each shard. They keep every local journal balanced even though the full buyer-to-seller movement spans two database partitions.
+
 ---
 
 ## 6. Mathematical Absolute Invariants (At All Times)
@@ -169,11 +235,15 @@ Available += X
 Reserved  -= X
 `(Available + X) + (Reserved - X) = Available + Reserved`
 
-**For Consume (Settlement):**
-Depending on business models, consumption usually does:
-Reserved -= X
-Total    -= X
-While recording the corresponding external debit/transfer in the ledger, shrinking the global Total cleanly while preserving the exact ratio.
+**For Consume (Seller Settlement):**
+If the seller wallet is internal:
+Buyer Reserved -= X
+Buyer Total    -= X
+Seller Available += X
+Seller Total     += X
+The platform-wide sum remains unchanged; ownership moves from buyer to seller.
+
+If the seller is external to the wallet system, consumption can instead reduce the buyer's reserved and total balance while creating an external settlement payable.
 
 > [!CAUTION] 
 > **"At All Times" defined for Financial Systems:**

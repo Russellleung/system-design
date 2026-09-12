@@ -310,6 +310,85 @@ public class LedgerService {
 
 The ledger router decides whether two accounts live on the same ledger partition. Same-partition transfers use the local ACID method above. Cross-partition transfers are coordinated as two idempotent local ledger postings connected by suspense accounts.
 
+Plain control flow:
+
+```text
+transferFunds(sender, receiver, amount, currency):
+    sender_partition   = partitionFor(sender)
+    receiver_partition = partitionFor(receiver)
+
+    if sender_partition == receiver_partition:
+        BEGIN local transaction
+          lock sender and receiver accounts in sorted account_id order
+          debit sender wallet
+          credit receiver wallet
+          write balanced journal
+        COMMIT
+        return COMPLETED
+
+    else:
+        create or load global transfer record by idempotency key
+        resumeCrossPartitionTransfer(transfer_id)
+        return transfer_id
+```
+
+Cross-partition resume logic:
+
+```text
+resumeCrossPartitionTransfer(transfer_id):
+    transfer = load transfer record
+
+    if transfer.status == PENDING:
+        on sender partition:
+            BEGIN local transaction
+              lock sender account
+              lock outgoing suspense account
+              debit sender wallet
+              credit outgoing suspense
+              write journal with idempotency key transfer_id:DEBIT_SENDER
+            COMMIT
+
+        mark transfer = DEBIT_POSTED
+
+    if transfer.status == DEBIT_POSTED:
+        on receiver partition:
+            BEGIN local transaction
+              lock incoming suspense account
+              lock receiver account
+              debit incoming suspense
+              credit receiver wallet
+              write journal with idempotency key transfer_id:CREDIT_RECEIVER
+            COMMIT
+
+        mark transfer = CREDIT_POSTED
+
+    if transfer.status == CREDIT_POSTED:
+        mark transfer = COMPLETED
+```
+
+Compensation flow if the receiver leg cannot be completed:
+
+```text
+compensateSender(transfer_id):
+    transfer = load transfer record
+
+    if transfer.status is DEBIT_POSTED or FAILED:
+        on sender partition:
+            BEGIN local transaction
+              lock outgoing suspense account
+              lock sender account
+              debit outgoing suspense
+              credit sender wallet
+              write reversal journal with idempotency key transfer_id:REVERSE_SENDER
+            COMMIT
+
+        mark transfer = REVERSED
+```
+
+The important idea is that each shard only performs normal local ACID work. The orchestrator does not make the two databases commit atomically together; it records progress durably and retries until every required local journal exists.
+
+For any local transaction that locks more than one account on the same shard, account locks are always acquired in sorted `account_id` order. This avoids deadlocks where two concurrent transfers try to lock the same pair of accounts in opposite order.
+
 ```java
 public interface LedgerRouter {
     int partitionFor(UUID accountId);
