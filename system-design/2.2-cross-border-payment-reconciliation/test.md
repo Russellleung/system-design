@@ -42,6 +42,26 @@ Design an enterprise-grade batch and real-time reconciliation engine that ingest
 | `MatchingResult` rows | 50M rows/day × ~150 bytes | ~225 GB/month | 1 year hot |
 | **Staging DB hot data (90 days)** | | **~47 TB raw** → ~12 TB with columnar compression | Partitioned by `ingestion_date` |
 
+### 1. Ingestion Layer Scaling (Spark / Flink)
+* **Target Load**: Stream, parse, and hash 50M dirty external records (MT940/CAMT.053) into the Staging DB.
+* **Hardware Profile**: 10 Worker Nodes (16-vCPU / 16 GB RAM).
+* **Capacity Math**: Ingestion is heavily CPU-bound. 16 vCPUs provide intense multi-core parallel string parsing and SHA-256 cryptographic hashing. Memory footprint is tiny; nodes only need ~128 MB of RAM at any given moment to process temporary S3 byte-chunks before persisting to the DB. They have zero awareness of the structural internal ledger.
+
+### 2. Matching Engine Layer Scaling (Java / Spark)
+* **Target Load**: Reconcile 50M normalized canonical records against 10M internal ledger records.
+* **Hardware Profile**: 20 Worker Nodes (8-vCPU / 64 GB RAM / 10 Gbps Network).
+* **Capacity Math**: 
+  * 10M internal records take ~3 GB of JVM heap memory.
+  * 50M external records take ~15 GB of JVM heap memory.
+  * With 20 nodes, the external pool is partitioned. Each node must hold `2.5M` external records (~750 MB) + a full `3 GB` copy of the internal ledger. This footprint comfortably fits inside the 64 GB RAM boundary without triggering swap/disk-spilling.
+
+### How Matching Data is Partitioned (Broadcast Hash Join)
+In distributed systems, moving data across the network between 20 nodes (Network Shuffling) kills performance.
+To avoid network I/O during the match operation, we rely on a **Broadcast Hash Join**:
+1. **The Internal Records (10M)**: Because 10M records only consume 3 GB, the system uses a Broadcast variable. It blasts a 1-to-1 copy of the entire 3 GB internal HashMap to *every single one* of the 20 matching nodes.
+2. **The External Records (50M)**: The 50M external records polled from the Staging DB are split evenly, so each node receives an isolated 2.5 million row chunk.
+3. **Execution**: Because every node has the *full* internal dictionary entirely localized in memory, it churns through its 2.5 million external rows 100% on the CPU without ever making a network call to the other 19 nodes.
+
 ### Why Spark/Flink and Not a Simple RDBMS?
 | Approach | Pros | Cons | Verdict |
 | :--- | :--- | :--- | :--- |
@@ -54,25 +74,68 @@ Design an enterprise-grade batch and real-time reconciliation engine that ingest
 
 ## 4. High-Level Ingestion & Normalization Data Flow
 
-```mermaid
-flowchart TD
-    A[50+ Partner Banks] -->|SFTP / API Drop| B[AWS S3 Raw Dropzone Bucket]
-    B -->|S3 ObjectCreated Event| C[Amazon SQS File Queue]
-    C --> D[Distributed Ingestion Cluster Java Spark / Flink]
-    
-    subgraph Ingestion & Normalization Pipeline
-        D -->|Read Chunk| E[Java Format Parsers MT940 / CAMT.053 / CSV]
-        E --> F[Canonical BankStatementRecord Normalizer]
-        F -->|De-duplication Hash| G[(Staging DB / Snowflake)]
-    end
-    
-    G --> H[Java Reconciliation Matching Engine]
-    H -->|Query Internal Ledger| I[(Internal Ledger Database)]
-    
-    H -->|Rule 1: Exact UETR Match| J[Reconciled Records Store]
-    H -->|Rule 2: Fuzzy Match Score >= 0.95| J
-    H -->|Unmatched / Mismatched| K[Break Management Service]
+```text
+       [ 50+ Partner Banks ]
+                 |
+                 v (SFTP / API)
+   [ AWS S3 Raw Dropzone Bucket ]
+                 |
+                 v (Event Notification)
+   [ Amazon SQS File Queue ]
+                 |
+                 v (Poll)
+[ Distributed Ingestion Cluster (Spark/Flink) ]
+(10 nodes: 16 vCPU / 16 GB RAM)
+                 |
+   --------------+---------------+
+   |             |               |
+[ MT940 ]   [ CAMT.053 ]     [ CSV ]  <-- (Format Parsers)
+   |             |               |
+   +-------------+---------------+
+                 |
+                 v (Normalized)
+   [ Canonical BankStatementRecord ]
+                 |
+                 v (SHA-256 De-duplication Hash)
+    [ Staging DB (PostgreSQL / Snowflake) ]
+    (Primary: 32 vCPU / 256 GB RAM / 4 TB NVMe)
+                 |
+                 v
+  [ Java/Flink Reconciliation Matching Engine ]
+  (20 nodes: 8 vCPU / 64 GB RAM)
+                 | <--------> [ Internal Ledger Database ]
+       (Rule 1 Exact & Rule 2 Fuzzy)
+                 |
+        +--------+--------+
+        |                 |
+  [ Reconciled ]    [ Break Dashboard ]
 ```
+
+### Ingestion & Matching Sequence with Latency Bounds
+
+```text
+Bank           AWS S3             SQS           Spark/Flink Engine       Staging DB
+ |               |                 |                    |                    |
+ |-- 1. SFTP file (10s) ->         |                    |                    |
+ |               |-- 2. Notify Event (~50ms) ->         |                    |
+ |               |                 |                    |                    |
+ |               |                 |<-- 3. Poll message (~1s) ---------------|
+ |               |                 |                    |                    |
+ |               |<-- 4. Stream file chunks (100MB/s) --|                    |
+ |               |                 |                    |                    |
+ |               |                 |-- 5. Parse MT940 to Canonical (~2s)     |
+ |               |                 |                                         |
+ |               |                 |-- 6. De-dup INSERT ON CONFLICT (~2ms) ->|
+ |               |                 |                                         |
+ |               |                 |-- 7. Distribute & Broadcast Join (~10s) |
+ |               |                 |                                         |
+ |               |                 |-- 8. Rule 1: Exact Match (~5s)          |
+ |               |                 |-- 9. Rule 2: Fuzzy Match (~15s) ------->|
+ |               |                 |                                         |
+ |               |                 |-- 10. Persist MatchingResults (~5s) --->|
+```
+* **Total SLA Target:** $< 2 \text{ hours}$
+* **Actual E2E Pipeline Latency:** $\sim 30–45 \text{ seconds}$ per 1-Million line statement.
 
 ### Ingestion Pipeline Design Decisions
 
@@ -80,6 +143,7 @@ flowchart TD
 | :--- | :--- | :--- |
 | **De-duplication strategy** | SHA-256 hash of `(bank_id, statement_line_id, amount, value_date, currency)` stored with `INSERT ... ON CONFLICT DO NOTHING` | Adds ~2ms per record for hash computation, but guarantees crash-resume safety. A worker that dies at line 500K of a 1M-line file can restart from line 0 without producing duplicate records. |
 | **Chunked parallel parsing** | Split large statement files into 10K-line chunks, distribute across Spark executor partitions | Enables parallel parsing of a single 1M-line file across 100 executors, reducing parse time from 60s (serial) to ~2s (parallel). Tradeoff: chunk boundaries must not split multi-line MT940 transaction blocks (parser must be block-aware). |
+| **Delimiter-Aware Streaming** | The Spark/Flink `XmlInputFormat` streams raw network bytes into a tiny RAM buffer seeking specific structural strings (like `\n` or the closing `</Transaction>` tag) rather than blindly dividing files by raw math. | Prevents XML/CSV document corruption. Safely "plucks" individual transactions off the TCP pipeline without accidentally slicing nested XML nodes in half, firmly bounding RAM usage to < 20MB. |
 | **Canonical model** | All formats normalized to `CanonicalStatementRecord` before matching | Parser complexity is isolated per format adapter. Adding a new bank format requires only a new parser implementation, zero changes to the matching engine. |
 | **S3 → SQS event-driven** vs polling | S3 event notifications trigger processing | Eliminates polling waste and ensures files are processed within seconds of arrival. SQS provides at-least-once delivery with visibility timeout for worker crash recovery. |
 
@@ -136,9 +200,19 @@ public class Spec2_2 {
             List<InternalLedgerEntry> internalEntries
         );
     }
+
+    public interface StagingDbRepository {
+        List<InternalLedgerEntry> findFuzzyMatches(String accountNumber, String currency, LocalDate valueDate);
+    }
 }
 
 public class DefaultMatchingEngine implements Spec2_2.MatchingEngine {
+
+    private final Spec2_2.StagingDbRepository stagingDbRepository;
+
+    public DefaultMatchingEngine(Spec2_2.StagingDbRepository stagingDbRepository) {
+        this.stagingDbRepository = stagingDbRepository;
+    }
 
     @Override
     public List<Spec2_2.MatchingResult> processMatchingBatch(
@@ -155,8 +229,11 @@ public class DefaultMatchingEngine implements Spec2_2.MatchingEngine {
         }
 
         Set<String> matchedInternalIds = new HashSet<>();
+        List<Spec2_2.CanonicalStatementRecord> unmatchedBankRecords = new ArrayList<>();
 
-        // Rule 1: Exact UETR Match
+        // ---------------------------------------------------------
+        // PASS 1: Strict Exact UETR Matches Only (Distributed Barrier)
+        // ---------------------------------------------------------
         for (Spec2_2.CanonicalStatementRecord bankRec : bankRecords) {
             Spec2_2.InternalLedgerEntry internalRec = uetrMap.get(bankRec.uetr());
 
@@ -169,18 +246,47 @@ public class DefaultMatchingEngine implements Spec2_2.MatchingEngine {
                 } else {
                     results.add(new Spec2_2.MatchingResult(
                         Spec2_2.ReconciliationStatus.BREAK_MISMATCH, bankRec, internalRec,
-                        "Amount or currency discrepancy: Bank=" + bankRec.amount() + " " + bankRec.currency() 
-                        + " vs Internal=" + internalRec.amount() + " " + internalRec.currency()));
+                        "Amount or currency discrepancy"));
                 }
             } else {
-                // Unmatched bank record
-                results.add(new Spec2_2.MatchingResult(
-                    Spec2_2.ReconciliationStatus.BREAK_MISSING_INTERNAL, bankRec, null,
-                    "No internal transaction found matching UETR " + bankRec.uetr()));
+                // Defer unmatched records to Pass 2 to prevent Double-Match Race Conditions
+                unmatchedBankRecords.add(bankRec);
             }
         }
 
-        // Detect Missing External Records
+        // ---------------------------------------------------------
+        // PASS 2: Fuzzy Logic (Operates ONLY on explicitly leftover un-claimed pool)
+        // ---------------------------------------------------------
+        for (Spec2_2.CanonicalStatementRecord bankRec : unmatchedBankRecords) {
+            List<Spec2_2.InternalLedgerEntry> fuzzyMatches = stagingDbRepository.findFuzzyMatches(
+                bankRec.accountNumber(), 
+                bankRec.currency(), 
+                bankRec.valueDate()
+            );
+
+            // CRITICAL: Filter out any records that were claimed in Pass 1 globally
+            List<Spec2_2.InternalLedgerEntry> availableFuzzyMatches = fuzzyMatches.stream()
+                .filter(rec -> !matchedInternalIds.contains(rec.txnId()))
+                .toList();
+
+            if (availableFuzzyMatches.size() == 1 && availableFuzzyMatches.get(0).amount().compareTo(bankRec.amount()) == 0) {
+                Spec2_2.InternalLedgerEntry fuzzyRec = availableFuzzyMatches.get(0);
+                matchedInternalIds.add(fuzzyRec.txnId());
+                results.add(new Spec2_2.MatchingResult(
+                    Spec2_2.ReconciliationStatus.RECONCILED, bankRec, fuzzyRec, "Matched via Rule 2 (Fuzzy)"));
+                    
+            } else if (availableFuzzyMatches.size() > 1) {
+                results.add(new Spec2_2.MatchingResult(
+                    Spec2_2.ReconciliationStatus.BREAK_MISSING_INTERNAL, bankRec, null,
+                    "Ambiguous Rule 2 Fuzzy Match: Found " + availableFuzzyMatches.size() + " potential matches"));
+            } else {
+                results.add(new Spec2_2.MatchingResult(
+                    Spec2_2.ReconciliationStatus.BREAK_MISSING_INTERNAL, bankRec, null,
+                    "No internal transaction found via Exact UETR or Rule 2 Fuzzy Search"));
+            }
+        }
+
+        // Detect Missing External Records (Unclaimed internals)
         for (Spec2_2.InternalLedgerEntry internal : internalEntries) {
             if (!matchedInternalIds.contains(internal.txnId())) {
                 results.add(new Spec2_2.MatchingResult(
@@ -196,12 +302,12 @@ public class DefaultMatchingEngine implements Spec2_2.MatchingEngine {
 
 ### Matching Engine Performance Characteristics
 
-| Phase | Complexity | Time @ 50M records | Notes |
-| :--- | :--- | :--- | :--- |
-| Build UETR HashMap (internal entries) | O(n) | ~2s for 10M entries | Single-pass, pre-allocated HashMap capacity = `n * 1.5` to avoid rehash |
-| Rule 1: Exact UETR lookup | O(1) per record, O(m) total | ~5s for 50M lookups | HashMap.get() is ~50ns per lookup |
-| Rule 2: Fuzzy match (unmatched only) | O(k × log n) per fuzzy candidate | ~10–30s (k = unmatched count, typically 1–5% of m) | Composite index on `(account_number, currency, value_date)` in staging DB, queried per unmatched record |
-| **Total matching time** | | **~20–40s** on 20-node Spark cluster | Well within 2-hour SLA |
+| Phase | Complexity | Time @ 50M records | Single Op Latency | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| Build UETR HashMap (internal entries) | O(n) | ~2s for 10M entries | ~200 ns | Single-pass, pre-allocated HashMap capacity = `n * 1.5` to avoid rehash |
+| Rule 1: Exact UETR lookup | O(1) per record, O(m) total | ~5s for 50M lookups | ~100 ns | `HashMap.get()` is blazingly fast in-memory (L3 cache/RAM bound) |
+| Rule 2: Fuzzy match (unmatched only) | O(k × log n) per fuzzy candidate | ~10–30s (k = unmatched count) | ~2–5 ms | Composite index lookup heavily relying on Staging DB network/disk IO |
+| **Total matching time** | | **~20–40s** on 20-node cluster | N/A | Well within 2-hour SLA |
 
 ### Why HashMap and Not a Database JOIN?
 
@@ -216,32 +322,35 @@ A SQL `JOIN` between 50M external records and 10M internal records requires the 
 
 ## 6. Transaction Lifecycle State Machine
 
-```mermaid
-stateDiagram-v2
-    [*] --> SUBMITTED : Client / System Initiates Payment
-    
-    SUBMITTED --> CLEARED : Bank Settlement Confirmation Received
-    SUBMITTED --> PENDING_EXTERNAL : EOD Internal Ledger Export
-    
-    state Matching_Phase {
-        PENDING_EXTERNAL --> RECONCILED : Exact Match Rule 1 (UETR)
-        CLEARED --> RECONCILED : Exact Match Rule 1 (UETR)
-        
-        PENDING_EXTERNAL --> RECONCILED : Fuzzy Match Rule 2 (Account + Amt + Date ±2d)
-        
-        PENDING_EXTERNAL --> BREAK_MISSING_EXTERNAL : Exceeded T+3 Days without Bank Statement Record
-        CLEARED --> BREAK_MISSING_INTERNAL : Bank Statement Present, No Internal Record Found
-        PENDING_EXTERNAL --> BREAK_MISMATCH : Reference Match Found, but Amount/Fee Discrepancy
-    }
-
-    BREAK_MISSING_EXTERNAL --> RESOLVED_MANUAL : Ops Manual Adjustment
-    BREAK_MISSING_INTERNAL --> RESOLVED_MANUAL : Ops Manual Adjustment
-    BREAK_MISMATCH --> RESOLVED_AUTOMATED : Auto-adjustment for FX/Fee Tolerance (< $1.00)
-    BREAK_MISMATCH --> RESOLVED_MANUAL : Ops Manual Adjustment
-    
-    RECONCILED --> [*]
-    RESOLVED_AUTOMATED --> [*]
-    RESOLVED_MANUAL --> [*]
+```text
+[ SUBMITTED ] (Client initiates payment)
+      |
+      +---> [ CLEARED ] (Bank Settlement Received)
+      |         |
+      |         +--> (Rule 1: UETR Exact) ----------------------> [ RECONCILED ]
+      |
+      |
+      +---> [ PENDING_EXTERNAL ] (EOD Ledger Export)
+                |
+                +--> (Rule 1: UETR Exact) ----------------------> [ RECONCILED ]
+                |
+                +--> (Rule 2: Fuzzy Match) ---------------------> [ RECONCILED ]
+                |
+                |
+                +--> (Exceeded T+3 Days With No Bank Record) ---> [ BREAK_MISSING_EXTERNAL ] 
+                |                                                       |
+                |                                                       v
+                |                                                 [ RESOLVED_MANUAL ]
+                |
+                +--> (Bank Has Record, No Internal Entry) ------> [ BREAK_MISSING_INTERNAL ]
+                |                                                       |
+                |                                                       v
+                |                                                 [ RESOLVED_MANUAL ]
+                |
+                +--> (Reference Match but Amt/Currency Diff) ---> [ BREAK_MISMATCH ]
+                                                                        |
+                                                                        v
+                                                          [ RESOLVED_AUTOMATED (or) MANUAL ]
 ```
 
 ### State Transition Latency Expectations

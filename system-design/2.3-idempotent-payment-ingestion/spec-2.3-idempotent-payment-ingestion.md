@@ -1,7 +1,9 @@
 # Spec 2.3: Idempotent Payment Ingestion Pipeline
 
 ## 1. System Objective
-Design an API gateway and payment ingestion tier that guarantees **exactly-once payment processing semantics**. The engine must prevent duplicate charges under client retries, network timeouts, edge proxy drops, or downstream message broker crashes.
+Design an API gateway and payment ingestion tier that guarantees an **effectively-once payment creation effect**. The engine must prevent duplicate charges under client retries, network timeouts, edge proxy drops, or downstream message broker crashes.
+
+The API idempotency layer prevents duplicate payment creation. The outbox/Kafka path remains **at-least-once delivery**, so downstream consumers must also deduplicate by a stable `event_id`, `payment_id`, or `idempotency_key`.
 
 ## 2. System Requirements
 
@@ -11,7 +13,7 @@ Design an API gateway and payment ingestion tier that guarantees **exactly-once 
   * *Call Succeeded*: Return the cached response payload (HTTP 200/201) without re-executing payment logic.
   * *Call In-Progress*: Return `HTTP 409 Conflict` (or `HTTP 429` with `Retry-After: 2`) to block concurrent duplicate executions.
   * *Call Failed (Retryable)*: Re-execute payment processing safely with identical idempotency key.
-* **State Management**: Track idempotency state machine transitions (`STARTED` $\rightarrow$ `IN_PROGRESS` $\rightarrow$ `SUCCESS` | `FAILED`).
+* **State Management**: Track idempotency state machine transitions (`STARTED` $\rightarrow$ `IN_PROGRESS` $\rightarrow$ `SUCCESS` | `FAILED_RETRYABLE` | `FAILED_FINAL`).
 
 ### Non-Functional Requirements
 * **Performance**: API P99 latency $< 150\text{ ms}$.
@@ -29,9 +31,9 @@ Design an API gateway and payment ingestion tier that guarantees **exactly-once 
 | Avg payment TPS | 500–1,000 | Steady-state daily volume |
 | Client retry rate (healthy) | 0.5–2% of requests | Transient timeouts, mobile network drops |
 | Client retry rate (degraded) | 10–30% of requests | During partial outages, aggressive retry from SDK |
-| Idempotency key cardinality | ~50M unique keys/day | At 500 TPS × 86,400s |
-| Redis key memory | ~50M × 300 bytes (key + JSON payload) ≈ **15 GB** | 24-hour TTL; single Redis Cluster (3 primaries) handles this |
-| PostgreSQL idempotency table growth | 50M rows/day × 200 bytes ≈ **10 GB/day** | Partitioned by `created_at`, prune after 7 days → ~70 GB max |
+| Idempotency key cardinality | ~43M–86M unique keys/day | 500–1,000 average TPS × 86,400s |
+| Redis key memory | ~43M–86M × ~300 bytes raw ≈ **13–26 GB raw** | Provision ~60–120 GB primary memory after Redis overhead, cached responses, fragmentation, and headroom |
+| PostgreSQL idempotency table growth | ~43M–86M rows/day × ~200 bytes raw ≈ **9–17 GB/day raw** | Physical footprint is higher after row overhead, indexes, WAL, response payloads, and replication |
 
 ### Why 99.999% (Five 9s) Availability?
 
@@ -41,56 +43,106 @@ Five 9s = ~5.26 minutes downtime per year. This is the standard for payment APIs
 - Customers don't wait — they go to a competitor
 
 **How to achieve it:**
-| Layer | Strategy | Contribution |
-| :--- | :--- | :--- |
-| API Gateway (ALB/NLB) | Multi-AZ, health-check failover in < 10s | Eliminates single-AZ failure |
-| Redis | 6-node cluster (3 primary + 3 replica) across 3 AZs, automatic failover | < 15s failover. Even if entire Redis dies, Postgres is the source of truth (see below). |
-| PostgreSQL | Patroni-managed primary + sync standby, automatic failover | < 30s failover with zero data loss |
-| Application | 3+ pods per AZ (9+ total), rolling deploy, readiness probes | No single-pod failure causes unavailability |
-| **Combined** | Each layer provides 99.99%; layered redundancy achieves ~99.999% | |
+| Layer | Strategy | Contribution | Capacity Estimate |
+| :--- | :--- | :--- | :--- |
+| API Gateway (ALB/NLB) | Multi-AZ, health-check failover in < 10s | Eliminates single-AZ failure | Built-in AWS auto-scaling (10K+ TPS boundary) |
+| Redis | 6-node cluster (3 primary + 3 replica) across 3 AZs | < 15s failover. Even if entire Redis dies, Postgres is the ultimate source of truth. | 8-vCPU / 64 GB RAM nodes (~30K+ simple atomic ops/sec) |
+| PostgreSQL | Patroni-managed primary + sync standby, automatic failover | < 30s failover with zero data loss | 1x 64-vCPU / 256 GB RAM NVMe/io2; validated for 5K payment transactions/sec |
+| Application | 3+ pods per AZ (9+ total), rolling deploy, readiness probes | No single-pod failure causes unavailability | 4-vCPU / 16 GB RAM per pod (absorbs ~5K total peak TPS) |
+| **Combined** | Layered redundancy achieves global ~99.999% SLA | ~5.26 mins downtime/yr | |
+
+### Database Scaling Strategy
+* **Target Load**: 5,000 peak TPS (inserts to idempotency/outbox tables).
+* **Hardware**: A primary PostgreSQL 16 instance with 64 vCPUs, 256 GB RAM, PgBouncer, and low-latency NVMe/io2 storage is the starting point for the hard 5K TPS target.
+* **Connection Model**: PostgreSQL should not expose 100K direct database connections. Use PgBouncer to multiplex many API connections onto ~200–500 active database sessions.
+* **Scale-out trigger**: If sustained 5K TPS cannot be met with acceptable WAL/fsync and lock-wait latency, partition idempotency/payment/outbox tables by merchant/client or route high-volume clients to separate ingestion shards.
+* **Nodes**: 1 Primary + 1 Sync Standby + 2 Async Replicas.
+
+### Application Server Scaling (API Gateway)
+* **Target Load**: 5,000 peak TPS.
+* **Hardware**: Standard 8-vCPU / 32 GB RAM nodes running Spring Boot + HikariCP.
+* **Capacity**: Each node safely sustains ~1,500 TPS since idempotency checks are lightning-fast Redis lookups.
+* **Nodes Needed**: Deploy 6–8 nodes across 3 AZs for N+2 safe redundancy.
 
 ---
 
-## 4. End-to-End Sequence Diagram
+## 4. Component Architecture (Simple Box Diagram)
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Client
-    participant Gateway as API Gateway / Idempotency Layer
-    participant Redis as Redis Cache (Locks & Fast Cache)
-    participant PaymentSvc as Java Payment Service
-    participant Postgres as PostgreSQL DB (Outbox & Ledger)
-    participant Kafka as Kafka Payment Topic
+```text
+       [ Mobile / Web Client ]
+                 |
+                 v (HTTPS POST)
+[ AWS ALB Load Balancer (2 vCPU / 4 GB) ]
+                 |
+                 v (Routing)
+[ API Gateway / Payment Service (8 vCPU / 32 GB) ]
+            /                  \
+   (Fast Path ~0.5ms)     (Durable Path ~20ms)
+          v                      v
+[ Redis Cluster ]         [ PostgreSQL Primary ] --WAL--> [ PG Replicas ]
+(3x 8 vCPU / 64 GB)       (64 vCPU / 256 GB RAM)
+(Fast gate/cache)         (Idempotency, Payment & Outbox)
+                                 |
+                                 v (Poll / CDC)
+                       [ Java Outbox Publisher ]
+                                 |
+                                 v (Events)
+                            [ Kafka ]
+```
 
-    Client->>Gateway: POST /v1/payments (Header: Idempotency-Key: K-123)
-    Gateway->>Redis: SET idempotency:K-123 "IN_PROGRESS" NX EX 30
-    
-    alt Redis Key Exists (Lock Failed)
-        Redis-->>Gateway: Key exists (Val: "IN_PROGRESS" or JSON payload)
-        alt Status == "IN_PROGRESS"
-            Gateway-->>Client: HTTP 409 Conflict ("Transaction processing in progress")
-        else Status == "SUCCESS"
-            Gateway-->>Client: HTTP 200 OK (Cached Response JSON)
-        end
-    else Lock Acquired (New Request)
-        Redis-->>Gateway: OK
-        Gateway->>PaymentSvc: processPayment(cmd)
-        
-        PaymentSvc->>Postgres: BEGIN TRANSACTION
-        PaymentSvc->>Postgres: INSERT INTO idempotency_keys ...
-        PaymentSvc->>Postgres: INSERT INTO payment_intents ...
-        PaymentSvc->>Postgres: INSERT INTO outbox_events ...
-        PaymentSvc->>Postgres: UPDATE idempotency_keys SET status = 'SUCCESS' ...
-        PaymentSvc->>Postgres: COMMIT TRANSACTION
-        
-        PaymentSvc->>Redis: SET idempotency:K-123 '{"status":"SUCCESS", "response":{...}}' EX 86400
-        
-        PaymentSvc-->>Gateway: Payment Result
-        Gateway-->>Client: HTTP 200 OK
-        
-        note over Postgres, Kafka: Java Outbox Publisher polls outbox_events and publishes to Kafka
-    end
+## 5. End-to-End Sequence Diagram
+
+```text
+Client        API Gateway       Redis Gate      Payment Service       Database          Kafka
+  |                |                 |                 |                 |               |
+  |-- 1. POST ---->|                 |                 |                 |               |
+  | Idem-Key K1    |                 |                 |                 |               |
+  | latency: ~10ms |                 |                 |                 |               |
+  |                |-- 2. GET ------>|                 |                 |               |
+  |                | latency: ~0.3ms |                 |                 |               |
+  |                |<- hit/miss -----|                 |                 |               |
+  |                |                 |                 |                 |               |
+  |                |-- 3. SET NX --->|                 |                 |               |
+  |                | latency: ~0.5ms |                 |                 |               |
+  |                |<- acquired -----|                 |                 |               |
+  |                |                 |                 |                 |               |
+  |                |                 |-- 4. process -->|                 |               |
+  |                |                 | latency: ~1ms   |                 |               |
+  |                |                 |                 |-- 5. BEGIN --->|               |
+  |                |                 |                 | latency: <1ms   |               |
+  |                |                 |                 |-- 6. lock/insert idem row -->|
+  |                |                 |                 | latency: ~2-5ms |               |
+  |                |                 |                 |-- 7. INSERT payment ------->|
+  |                |                 |                 | latency: ~2-5ms |               |
+  |                |                 |                 |-- 8. INSERT outbox event -->|
+  |                |                 |                 | latency: ~2-5ms |               |
+  |                |                 |                 |-- 9. UPDATE idem SUCCESS -->|
+  |                |                 |                 | latency: ~1-3ms |               |
+  |                |                 |                 |--10. COMMIT ---------------->|
+  |                |                 |                 | latency: ~5-15ms WAL/fsync  |
+  |                |--11. SET SUCCESS response, 24h TTL -->|             |               |
+  |                | latency: ~0.5ms |                 |                 |               |
+  |<-12. 200 OK ---|                 |                 |                 |               |
+  | latency: ~5ms  |                 |                 |                 |               |
+  |                |                 |                 |                 |--13. Poll / CDC -->|
+  |                |                 |                 |                 | latency: 0-100ms poll delay |
+```
+
+If Redis returns `IN_PROGRESS`, misses, or is unavailable, the API performs a second check against PostgreSQL:
+
+```text
+API Gateway / Payment Service
+  |
+  | durable lookup by idempotency_key + request_hash
+  | latency: ~2-10ms indexed lookup
+  v
+PostgreSQL idempotency_records
+  |
+  +--> SUCCESS          -> return stored response, refresh Redis
+  +--> IN_PROGRESS      -> return 409/429 Retry-After
+  +--> FAILED_RETRYABLE -> retry safely
+  +--> FAILED_FINAL     -> return stored failure
+  +--> missing          -> start new transaction
 ```
 
 ### Latency Budget Breakdown (Target: P99 < 150ms)
@@ -117,13 +169,14 @@ The 150ms budget accounts for:
 
 ---
 
-## 5. Java API Gateway & Service Implementation
+## 6. Java API Gateway & Service Implementation
 
 ```java
 package com.financial.ingestion.controller;
 
 import java.math.BigInteger;
 import java.time.Duration;
+import java.util.Optional;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -141,6 +194,20 @@ public record PaymentResponse(
     String paymentId,
     String status,
     BigInteger amount
+) {}
+
+public enum IdempotencyStatus {
+    IN_PROGRESS,
+    SUCCESS,
+    FAILED_RETRYABLE,
+    FAILED_FINAL
+}
+
+public record IdempotencyRecord(
+    String key,
+    String requestHash,
+    IdempotencyStatus status,
+    String responseBody
 ) {}
 
 @RestController
@@ -161,65 +228,126 @@ public class PaymentController {
             @RequestBody PaymentRequest request) {
 
         String lockKey = "idempotency:" + idempotencyKey;
+        String requestHash = sha256CanonicalJson(request);
+
+        String cachedResponse = redisTemplate.opsForValue().get(lockKey);
+        if (cachedResponse != null && !cachedResponse.equals("IN_PROGRESS")) {
+            return ResponseEntity.ok(cachedResponse);
+        }
 
         // Try acquire lock in Redis
         Boolean acquired = redisTemplate.opsForValue()
                 .setIfAbsent(lockKey, "IN_PROGRESS", Duration.ofSeconds(30));
 
         if (Boolean.FALSE.equals(acquired)) {
-            String existingVal = redisTemplate.opsForValue().get(lockKey);
-            if ("IN_PROGRESS".equals(existingVal)) {
-                return ResponseEntity.status(HttpStatus.CONFLICT)
-                        .body("Transaction processing in progress, please retry shortly.");
-            }
-            // Return cached response
-            return ResponseEntity.ok(existingVal);
+            return paymentService.lookupExisting(idempotencyKey, requestHash)
+                    .map(this::responseFromDurableRecord)
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.CONFLICT)
+                            .body("Transaction processing in progress, please retry shortly."));
         }
 
         try {
-            PaymentResponse response = paymentService.processPaymentIdempotent(idempotencyKey, request);
+            PaymentResponse response = paymentService.processPaymentIdempotent(
+                idempotencyKey, requestHash, request);
             String jsonResponse = toJson(response);
             
             // Cache successful result for 24 hours
             redisTemplate.opsForValue().set(lockKey, jsonResponse, Duration.ofDays(1));
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            redisTemplate.delete(lockKey); // Evict on failure so retry can proceed
+            // Do not blindly delete the Redis key. The DB transaction may have
+            // committed even if this process saw a timeout or connection error.
+            // Let the short IN_PROGRESS TTL expire; retries consult Postgres.
             throw e;
         }
     }
 
+    private ResponseEntity<?> responseFromDurableRecord(IdempotencyRecord record) {
+        return switch (record.status()) {
+            case SUCCESS -> ResponseEntity.ok(record.responseBody());
+            case FAILED_FINAL -> ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                    .body(record.responseBody());
+            case FAILED_RETRYABLE, IN_PROGRESS -> ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body("Transaction processing in progress, please retry shortly.");
+        };
+    }
+
+    private String sha256CanonicalJson(PaymentRequest request) {
+        return Digest.sha256(canonicalJson(request));
+    }
+
     private String toJson(PaymentResponse resp) {
-        return "{\"paymentId\":\"" + resp.paymentId() + "\",\"status\":\"" + resp.status() + "\"}";
+        return Json.serialize(resp);
     }
 }
 
 @Service
 public class PaymentIngestionService {
 
+    private final IdempotencyRepository idempotencyRepository;
     private final PaymentRepository paymentRepository;
     private final OutboxRepository outboxRepository;
 
-    public PaymentIngestionService(PaymentRepository paymentRepository, OutboxRepository outboxRepository) {
+    public PaymentIngestionService(IdempotencyRepository idempotencyRepository, PaymentRepository paymentRepository, OutboxRepository outboxRepository) {
+        this.idempotencyRepository = idempotencyRepository;
         this.paymentRepository = paymentRepository;
         this.outboxRepository = outboxRepository;
     }
 
     @Transactional
-    public PaymentResponse processPaymentIdempotent(String idempotencyKey, PaymentRequest req) {
+    public PaymentResponse processPaymentIdempotent(
+            String idempotencyKey,
+            String requestHash,
+            PaymentRequest req) {
+
+        IdempotencyRecord idem = idempotencyRepository.lockOrCreate(
+            idempotencyKey, requestHash);
+
+        if (!idem.requestHash().equals(requestHash)) {
+            throw new IdempotencyPayloadMismatchException();
+        }
+
+        if (idem.status() == IdempotencyStatus.SUCCESS) {
+            return Json.deserialize(idem.responseBody(), PaymentResponse.class);
+        }
+
+        if (idem.status() == IdempotencyStatus.IN_PROGRESS
+                && idempotencyRepository.isFresh(idem)) {
+            throw new PaymentAlreadyInProgressException();
+        }
+
+        // 2. Generate Payment UUID safely after owning the durable idempotency row.
         String paymentId = "PAY_" + UUID.randomUUID();
 
-        // 1. Write Payment Record
+        // 3. Write Payment Record
         paymentRepository.save(paymentId, req.accountId(), req.amount(), req.currency(), "AUTHORIZED");
 
-        // 2. Write Transactional Outbox Event
+        // 4. Write Transactional Outbox Event
         String outboxPayload = String.format("{\"paymentId\":\"%s\",\"amount\":%s}", paymentId, req.amount());
         outboxRepository.saveEvent("PAYMENT_CREATED", outboxPayload);
 
-        return new PaymentResponse(paymentId, "AUTHORIZED", req.amount());
+        PaymentResponse response = new PaymentResponse(paymentId, "AUTHORIZED", req.amount());
+        idempotencyRepository.markSuccess(idempotencyKey, toJson(response));
+        return response;
+    }
+
+    public Optional<IdempotencyRecord> lookupExisting(String idempotencyKey, String requestHash) {
+        Optional<IdempotencyRecord> record = idempotencyRepository.findByKey(idempotencyKey);
+        record.ifPresent(existing -> {
+            if (!existing.requestHash().equals(requestHash)) {
+                throw new IdempotencyPayloadMismatchException();
+            }
+        });
+        return record;
+    }
+
+    private String toJson(PaymentResponse response) {
+        return Json.serialize(response);
     }
 }
 ```
+
+`Json.serialize`, `Json.deserialize`, `Digest.sha256`, `canonicalJson`, and the custom exception types are placeholders for normal production utilities. The important behavior is that the request hash is stable, stored durably, and compared on every retry.
 
 ### Design Decision: Two-Layer Idempotency (Redis + PostgreSQL)
 
@@ -228,7 +356,7 @@ public class PaymentIngestionService {
 | **Purpose** | Gate concurrent duplicates within the same second | Durable source of truth surviving restarts |
 | **Consistency** | Best-effort (Redis can lose keys on restart) | Strong (ACID transaction) |
 | **Latency** | ~0.5ms | ~15–30ms |
-| **What happens if Redis dies?** | All requests fall through to PostgreSQL. The `INSERT INTO idempotency_keys` with `ON CONFLICT DO NOTHING` catches duplicates at the DB level. Latency increases to ~50ms but correctness is preserved. | N/A |
+| **What happens if Redis dies?** | All requests fall through to PostgreSQL. The durable idempotency row catches duplicates and returns stored results. Latency increases to ~50ms but correctness is preserved. | N/A |
 | **What happens if Postgres dies?** | Redis still serves cached responses for already-completed payments. New payments fail with 503 (correct behavior — we can't process without durable storage). | N/A |
 | **TTL strategy** | 24 hours (sufficient for retry windows) | 7 days (then pruned by partition drop) |
 
@@ -255,9 +383,9 @@ CORRECT (Transactional Outbox):
   2. INSERT INTO payments
   3. INSERT INTO outbox_events  ← same transaction
   4. COMMIT
-  5. [Separate poller] SELECT FROM outbox_events → kafka.send() → DELETE FROM outbox_events
+  5. [Separate poller] SELECT FROM outbox_events → kafka.send() → mark published_at
   Result: Payment and outbox event are atomic. Poller guarantees at-least-once delivery.
-          Kafka consumers deduplicate by payment_id.
+          Kafka consumers deduplicate by event_id/payment_id/idempotency_key.
 ```
 
 ### Outbox Poller Performance
@@ -266,12 +394,12 @@ CORRECT (Transactional Outbox):
 | :--- | :--- | :--- |
 | Poll interval | 100ms | Balances latency (max 100ms delay to Kafka) vs DB query load |
 | Batch size | 500 events per poll | Bulk fetch + bulk Kafka produce reduces per-message overhead |
-| Delivery guarantee | At-least-once | Poller deletes outbox row after Kafka ACK. Crash between Kafka ACK and delete causes re-delivery. Kafka consumers must be idempotent on `payment_id`. |
+| Delivery guarantee | At-least-once | Poller marks `published_at` after Kafka ACK. Crash between Kafka ACK and DB update causes re-delivery. Kafka consumers must be idempotent on `event_id`, `payment_id`, or `idempotency_key`. |
 | Throughput | ~5,000 events/sec per poller instance | Limited by PostgreSQL query + Kafka produce round-trip. Scale with multiple poller instances, each claiming a partition range. |
 
 ---
 
-## 6. SQL Race Condition Prevention Function
+## 7. SQL Race Condition Prevention Function
 
 ```sql
 CREATE OR REPLACE FUNCTION process_idempotent_payment(
@@ -283,6 +411,7 @@ CREATE OR REPLACE FUNCTION process_idempotent_payment(
 DECLARE
     v_record idempotency_records%ROWTYPE;
     v_response JSONB;
+    v_payment_id UUID;
 BEGIN
     -- Select existing idempotency record with FOR UPDATE row lock
     SELECT * INTO v_record 
@@ -299,16 +428,33 @@ BEGIN
             RETURN v_record.response_body;
         ELSIF v_record.status = 'IN_PROGRESS' THEN
             RAISE EXCEPTION 'Concurrent request in progress' USING ERRCODE = 'IDMP2';
+        ELSIF v_record.status = 'FAILED_FINAL' THEN
+            RETURN v_record.response_body;
         END IF;
     ELSE
         INSERT INTO idempotency_records (key, request_hash, status, created_at)
         VALUES (p_key, p_request_hash, 'IN_PROGRESS', NOW());
     END IF;
 
-    INSERT INTO payment_intents (id, account_id, amount, status)
-    VALUES (gen_random_uuid(), p_account_id, p_amount, 'PENDING');
+    v_payment_id := gen_random_uuid();
 
-    v_response := jsonb_build_object('status', 'SUCCESS', 'amount', p_amount);
+    INSERT INTO payment_intents (id, account_id, amount, status)
+    VALUES (v_payment_id, p_account_id, p_amount, 'AUTHORIZED');
+
+    INSERT INTO outbox_events (event_id, event_type, aggregate_id, payload, created_at)
+    VALUES (
+        gen_random_uuid(),
+        'PAYMENT_CREATED',
+        v_payment_id,
+        jsonb_build_object('paymentId', v_payment_id, 'amount', p_amount),
+        NOW()
+    );
+
+    v_response := jsonb_build_object(
+        'paymentId', v_payment_id,
+        'status', 'AUTHORIZED',
+        'amount', p_amount
+    );
 
     UPDATE idempotency_records 
     SET status = 'SUCCESS', response_body = v_response, updated_at = NOW()
@@ -330,22 +476,23 @@ The `request_hash` is SHA-256 of the full request body, computed by the gateway 
 
 ---
 
-## 7. Failure Points & Recovery
+## 8. Failure Points & Recovery
 
 | Failure Scenario | Impact | Detection | Recovery Strategy | RTO |
 | :--- | :--- | :--- | :--- | :--- |
 | **Redis cluster failover** | 15s window where lock check falls through to PostgreSQL | Redis Sentinel/Cluster failover events, connection pool error rate spike | PostgreSQL idempotency table catches duplicates. Latency degrades from ~35ms to ~60ms during failover. No correctness issue. | < 15s |
-| **Redis key eviction under memory pressure** | Idempotency cache miss for in-flight requests | Monitor `evicted_keys` metric; should always be 0 for volatile-lru policy with adequate memory | Size Redis to 2× expected key volume (30 GB for 50M keys). Set `maxmemory-policy allkeys-lru` never — use `noeviction` and alert at 80% memory. | Config fix |
+| **Redis memory pressure with `noeviction`** | Redis writes fail, so fast-path lock/cache is unavailable | Monitor memory usage and Redis command error rate | Fall back to PostgreSQL source of truth. Size Redis with 2–4× raw memory headroom and alert at 80% memory. | Config fix |
 | **Outbox poller stalls** | Kafka events delayed; downstream consumers see stale payment state | Monitor `outbox.pending_count` gauge (should be near 0). Alert if > 1,000 for > 1min. | Poller restart (stateless, safe to restart). If persistent: check PostgreSQL connection, Kafka broker health. Multiple poller instances provide redundancy. | < 30s |
 | **Client sends request without Idempotency-Key header** | Potential duplicate payment if client retries | Gateway validation rejects with `400 Bad Request` before any processing | Enforce mandatory `Idempotency-Key` header at API Gateway level (Kong, ALB rule). Return clear error message. | None (prevention) |
 | **Idempotency key TTL expiry + late retry** | Client retries with same key after 24h (Redis) or 7d (Postgres) — treated as new payment | Low probability but non-zero | Document client SDK contract: retries must occur within 24 hours. After TTL, re-processing is by design (user initiated a genuinely new attempt). Log and audit these cases. | By design |
 | **PostgreSQL deadlock on idempotency table** | Transaction aborted, client receives 500 | `pg_stat_activity` deadlock detection, application error log | Extremely unlikely — each idempotency key is unique, so two transactions never lock the same row. If it occurs, it indicates a bug in lock ordering. Retry once at application level. | < 1s |
 | **Kafka broker unavailable** | Outbox events pile up in PostgreSQL | Monitor `outbox.pending_count` + Kafka broker health | Outbox table absorbs backpressure (PostgreSQL handles 50M+ rows). Events are durable. When Kafka recovers, poller drains backlog. Design outbox partition pruning to handle multi-hour outages. | Kafka RTO (varies) |
 | **Partial commit: payment row written but outbox row fails** | Impossible — they are in the same DB transaction | N/A | This is the entire point of the Transactional Outbox pattern. If the transaction commits, both rows exist. If it rolls back, neither does. | N/A |
+| **DB committed but API timed out before Redis cache update** | Client retry sees Redis `IN_PROGRESS` or missing cache | Retry path queries PostgreSQL idempotency row | Return stored `SUCCESS` response from Postgres and refresh Redis cache. Do not blindly delete Redis locks on unknown errors. | One retry |
 
 ---
 
-## 8. Metrics, Tracing & Observability
+## 9. Metrics, Tracing & Observability
 
 ### Key Metrics
 
@@ -386,12 +533,12 @@ The `request_hash` is SHA-256 of the full request body, computed by the gateway 
 
 ---
 
-## 9. Self-Evaluation Checklist
+## 10. Self-Evaluation Checklist
 - [x] **Sequence Diagram**: Complete diagram covering Client, Gateway, Redis, Java Service, PostgreSQL, and Kafka Outbox.
 - [x] **Java Spring Boot Controller**: Idiomatic Spring MVC controller handling Redis lock acquire, response caching, and transactional outbox.
 - [x] **Race Condition SQL**: Atomic `FOR UPDATE` PostgreSQL function handling concurrent requests cleanly.
 - [x] **Outbox Pattern**: Dual-write prevention using local DB transaction outbox polling for zero-loss Kafka publishing, with performance characteristics.
 - [x] **Scaling & Capacity**: Traffic model, Redis memory sizing, PostgreSQL growth, and five-9s availability architecture.
 - [x] **Two-Layer Idempotency Tradeoff**: Full analysis of Redis vs Postgres roles, failure isolation, and why both layers are necessary.
-- [x] **Failure Points & Recovery**: 8 failure modes covering Redis failover, outbox stalls, key eviction, and partial-commit impossibility proof.
+- [x] **Failure Points & Recovery**: Failure modes covering Redis failover, Redis memory pressure, outbox stalls, and partial-commit impossibility proof.
 - [x] **Metrics & Tracing**: Idempotency-specific metrics, outbox drain health, and OpenTelemetry span hierarchy.

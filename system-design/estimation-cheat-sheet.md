@@ -34,6 +34,17 @@ A senior engineer's reference for back-of-the-envelope calculations. Every numbe
 | **HTTP API call (cross-region)** | **50–200 ms** | |
 | **DNS lookup (uncached)** | **20–120 ms** | |
 
+### 🧠 Deep Dive: How is "Read 1 MB sequentially from network (1 Gbps) = 10 ms" Calculated?
+The math relies on converting Networking speeds (measured in **bits**) into Data sizes (measured in **Bytes**), and then capturing real-world TCP protocol overhead:
+
+1. **Theoretical Math**:
+   * A 1 Gbps network transfers **1 Gigabit per second** (1,000 Megabits).
+   * Since there are 8 bits in every 1 Byte, divide by 8: `1,000 Mbps / 8 = 125 MB/s`.
+   * To transfer exactly 1 MB at 125 MB/s, it takes: `1 / 125 = 0.008 seconds = 8 milliseconds (ms)`.
+2. **Real-World TCP/IP Overhead**:
+   * Why does the famous cheat sheet specify **10 ms** instead of 8 ms? 
+   * Data over a wire is never raw; it is wrapped in TCP packets, burdened by IP headers, checksums, and requires ACK responses. This TCP envelope overhead predictably consumes roughly **~20%** of raw physical bandwidth, which stretches the real-world payload transfer time perfectly to 10 ms.
+
 ### Rule of Thumb: The "Powers of 10" Ladder
 ```
 Nanoseconds (ns)   →  CPU cache, branch prediction
@@ -195,6 +206,39 @@ Example: 50,000 peak TPS, API + DB call
 | **Cassandra** (single node) | 10,000–30,000 | 10,000–30,000 | Linear scale with nodes |
 | **MongoDB** | 20,000–50,000 | 5,000–15,000 | WiredTiger, depends on document size |
 | **Elasticsearch** (search) | 1,000–5,000 queries/sec | 5,000–20,000 docs/sec (bulk) | Per node. Search latency spikes under write load. |
+| **Hazelcast** (in-memory map) | 50,000–200,000 ops/sec | 20,000–100,000 ops/sec | Per member; network + serialization bound; backups reduce write throughput |
+
+### Analytical / File-Based Batch Storage
+
+| Format / System | Read Throughput | Write Throughput | Notes |
+| :--- | :--- | :--- | :--- |
+| **Parquet on S3** | 50,000–250,000 rows/sec per Spark cluster | 20,000–100,000 rows/sec per Spark cluster | Measure rows/sec or MB/sec, not API RPS. Depends on row width, compression, file count, and cluster size. |
+| **Parquet writer task** | 5,000–50,000 rows/sec per executor task | 5,000–50,000 rows/sec per executor task | Best with batched writes and 128–512 MB output files. Avoid tiny files. |
+| **Iceberg table metadata commit** | — | Seconds per commit | Data files are written in parallel; table commit is a metadata operation. Too many small commits hurt. |
+| **Spark shuffle join** | 50,000–250,000 rows/sec cluster-wide | — | Depends heavily on partition count, skew, network, and spill. |
+
+**Parquet rule of thumb:** write in bulk, not row-by-row.
+
+```text
+Good:
+  parse records -> batch by Spark partition / row group -> write 128-512 MB Parquet files
+
+Bad:
+  one row -> one write
+```
+
+**Example: 50M reconciliation records**
+
+```text
+Minimum 2-hour target:
+  50M / 7,200 sec = ~6,944 rows/sec
+
+Better ingestion target:
+  50M in 15-45 min = ~18.5K-55.5K rows/sec cluster-wide
+
+Raw logical size:
+  50M × 200B = 10 GB/day before Parquet encoding/compression/metadata
+```
 
 ### Message Queues
 
@@ -261,6 +305,7 @@ Example: 50,000 peak TPS, API + DB call
 | Java `String` (20 chars) | ~80 bytes | 40B object header + 40B char array |
 | Redis `String` key-value pair | ~90 bytes overhead + data | Even a 1-byte value costs ~90 bytes total |
 | Redis `Hash` field | ~70 bytes overhead + data | More efficient for multiple fields per key |
+| Hazelcast `IMap` entry | ~150–300 bytes overhead + data | Java object/serialization overhead, partition metadata, indexes, and backups increase footprint |
 | Go `map[string]string` entry | ~100 bytes overhead | |
 | PostgreSQL row overhead | ~23 bytes (tuple header) | Plus column data, TOAST for large values |
 
@@ -279,6 +324,44 @@ overhead_factor:
 ```
 10M × 500B × 1.2 = 6 GB Redis memory
 JVM HashMap: 10M × 500B × 2.0 = 10 GB heap required
+```
+
+### Hazelcast Sizing Rules of Thumb
+
+Hazelcast is an in-memory data grid. Treat it like a distributed JVM cache/map, not like durable storage.
+
+| Estimate | Rule of Thumb |
+| :--- | :--- |
+| Local member `IMap.get` latency | ~0.05-0.2 ms |
+| Remote member `IMap.get` latency | ~0.5-2 ms in same VPC/datacenter |
+| `IMap.put` with one synchronous backup | ~1-5 ms |
+| Throughput per member | ~50K-200K reads/sec; ~20K-100K writes/sec |
+| Safe memory usage | Keep heap/off-heap usage below ~60-70% |
+| Backup multiplier | 1 sync backup roughly doubles memory/storage usage |
+| Cluster size | 3 members minimum for HA; 5+ for larger production clusters |
+
+**Memory formula:**
+
+```text
+cluster_memory_needed
+= entries × (payload_size + per_entry_overhead) × backup_multiplier × headroom
+
+Where:
+  per_entry_overhead = ~150-300B
+  backup_multiplier  = 2× for one backup
+  headroom           = 1.3-1.7×
+```
+
+**Example: 10M cache entries, 500B payload, one backup**
+
+```text
+Per entry:       500B payload + 250B overhead = 750B
+Primary data:    10M × 750B = 7.5 GB
+One backup:      7.5 GB × 2 = 15 GB
+Headroom 1.5×:   22.5 GB total cluster memory
+
+With 3 members:
+  ~7.5 GB/member minimum; provision 16-32 GB/member
 ```
 
 ---

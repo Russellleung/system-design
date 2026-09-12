@@ -1,18 +1,20 @@
 # Spec 2.4: Real-Time FX Rate Streaming Engine
 
 ## 1. System Objective
-Design an ultra-low latency FX rate streaming pipeline that ingests raw tick feeds from 5 wholesale Liquidity Providers (LPs) across 50 currency pairs, constructs a real-time aggregated Top-of-Book (TOB) Order Book, calculates optimal Bid/Ask spreads, and streams mid-market rates to internal trading engines and checkout edge gateways holding guaranteed 30-second rate quote locks.
+Design an ultra-low latency FX rate streaming pipeline that ingests raw tick feeds from 5 wholesale Liquidity Providers (LPs) across 50 currency pairs, constructs a real-time aggregated Top-of-Book (TOB) Order Book, calculates optimal Bid/Ask spreads, and streams mid-market rates to internal trading engines and checkout edge gateways.
+
+Checkout and trading-screen clients request 30-second quote locks from a separate Quote Service. The HMAC-signed `QuoteToken` is issued on demand from the latest BBO snapshot, not on every market tick.
 
 ## 2. System Requirements
 
 ### Functional Requirements
 * **Multi-LP Ingestion**: Ingest binary/FIX protocol tick feeds from 5 LPs (Barclays, Citi, EBS, LMAX, Bloomberg).
 * **Top-of-Book (TOB) Aggregation**: Aggregate quotes to compute Best Bid / Best Offer (BBO) per currency pair.
-* **Guaranteed Quote Locks**: Issue cryptographically signed `QuoteToken` payloads valid for 30 seconds to lock rates for downstream e-commerce checkouts.
-* **LP Failover & Sanity Checking**: Stale tick detector (no quote for $> 200\text{ ms}$) and spike filter (drop outliers $> 3\sigma$ off mid-market).
+* **Guaranteed Quote Locks**: Issue cryptographically signed `QuoteToken` payloads valid for 30 seconds when a client asks for a locked quote. The token includes pair, side, rate, spread, notional limit, quote ID, issue time, and expiry.
+* **LP Failover & Sanity Checking**: Stale tick detector (no quote for $> 200\text{ ms}$), crossed-market checks, per-pair jump bands, and LP quorum/median checks. Pure $\sigma$-based filtering is not sufficient during real market moves.
 
 ### Non-Functional Requirements
-* **Latency Guarantee**: Tick-to-internal-subscriber P99 latency $< 5\text{ ms}$.
+* **Latency Guarantee**: Tick-to-internal-subscriber P99 latency $< 5\text{ ms}$ for same-AZ internal consumers. Edge/mobile WebSocket updates are conflated and target $< 200\text{ ms}$.
 * **Throughput Capacity**: Up to $100{,}000\text{ ticks/second}$ during peak market volatility.
 * **Resilience**: Zero-downtime failover if an LP feed drops off connection.
 
@@ -35,78 +37,101 @@ Design an ultra-low latency FX rate streaming pipeline that ingests raw tick fee
 | Component | Specification | Rationale |
 | :--- | :--- | :--- |
 | Ring buffer size | $2^{18}$ = 262,144 slots | Power of 2 required. At 100K events/sec → ~2.6s buffer before wrap. |
-| JVM heap | 4 GB (G1GC) or 2 GB (off-heap with Agrona) | Minimal heap reduces GC pause risk. Pre-allocated events = zero allocation. |
-| CPU cores | 4 dedicated (pinned via `taskset`) | 1 Disruptor loop, 1 TOB, 1 outlier filter, 1 signing. Pinning eliminates ~5μs context switch overhead. |
-| OS tuning | `isolcpus=4-7`, `nohz_full=4-7` | Isolate from kernel scheduler. Reduces jitter from ~50μs to < 2μs. |
+| JVM heap | 2–4 GB | The ring buffer itself is small: 262K slots × ~120–512 bytes ≈ ~30–128 MB. Extra heap is headroom for parser buffers, NATS client buffers, metrics, JVM overhead, and avoiding GC pressure. |
+| CPU cores per active aggregator | 3 dedicated pinned cores | 1 producer thread for feed normalization/ring-buffer publish, 1 consumer for sanity filtering, 1 consumer for TOB aggregation + NATS Core publish. HMAC signing is outside the tick hot path. |
+| Host sizing | 4–8 vCPU / 2–4 GB heap | Keep spare unpinned CPU for JVM runtime, metrics, admin endpoints, kernel work, and failover control plane. |
+| OS tuning | `isolcpus=4-6`, `nohz_full=4-6` | Isolate the three hot-path cores from the kernel scheduler. Reduces jitter from ~50μs to < 2μs. |
 
 ### Downstream Fan-out Scale
 | Consumer | Rate | Protocol | Latency Tolerance |
 | :--- | :--- | :--- | :--- |
-| Internal trading engine | Full 100K/sec | NATS JetStream | < 5ms P99 |
+| Internal trading engine | Full 100K/sec | NATS Core | < 5ms P99 |
 | Edge WebSocket gateways | 10 updates/sec/pair (conflated) | WebSocket push | < 200ms |
 | Redis quote cache | Latest TOB per pair | Redis SET | < 10ms |
 | Analytics/recording | Full tick stream | Kafka topic | < 1s best-effort |
+| Quote Service | Client quote-lock requests only | HTTP/gRPC + HMAC token | < 20ms |
+
+### Database / Storage Scaling Strategy
+* **Target Load**: N/A (Hot Path is 100% In-Memory).
+* **Rationale**: The real-time FX streaming core never touches disk or a database before publishing to hot consumers.
+* **Raw tick recording**: Best-effort analytics and replay are handled asynchronously through Kafka.
+* **Audit-grade records**: Quote issuance and quote redemption are durable records because they represent customer-facing economic commitments.
 
 ---
 
 ## 4. High-Level Component Diagram
 
-```mermaid
-flowchart TD
-    subgraph Liquidity Providers
-        LP1[LP 1: FIX Protocol]
-        LP2[LP 2: FIX Protocol]
-        LP3[LP 3: Binary TCP]
-        LP4[LP 4: WebSocket]
-        LP5[LP 5: WebSocket]
-    end
-
-    subgraph Connector & Ingestion Tier
-        LP1 --> C1[FIX Connector Engine]
-        LP2 --> C2[FIX Connector Engine]
-        LP3 --> C3[TCP Native Connector]
-        LP4 --> C4[WS Connector]
-        LP5 --> C5[WS Connector]
-    end
-
-    C1 -->|LMAX Disruptor RingBuffer| AGG[Java LMAX Disruptor Aggregator Engine]
-    C2 -->|LMAX Disruptor RingBuffer| AGG
-    C3 -->|LMAX Disruptor RingBuffer| AGG
-    C4 -->|LMAX Disruptor RingBuffer| AGG
-    C5 -->|LMAX Disruptor RingBuffer| AGG
-
-    subgraph Core Processing Unit sub-millisecond
-        AGG --> Outlier[Outlier Filter & Spike Detector]
-        Outlier --> TOB[Top-of-Book BBO Engine]
-        TOB --> Signer[Java HMAC-SHA256 Quote Signer]
-    end
-
-    Signer -->|Zero-Copy Publishing| NATS[NATS JetStream / Kafka Core Engine]
-
-    subgraph Downstream Fan-out & Consumers
-        NATS --> WSG[Edge WebSocket Gateways]
-        NATS --> Trading[Trading & Settlement Engine]
-        NATS --> Cache[Redis Quote Store]
-        WSG --> Client1[Web/Mobile Edge Clients]
-        Trading --> Ledger[Ledger Service]
-    end
+```text
+      [ LP1: FIX ] [ LP2: FIX ] [ LP3: Binary ] [ LP4: WS ] [ LP5: WS ]
+           |             |            |             |           |
+     +-----+-------------+------------+-------------+-----------+-----+
+     |                   Connectors & Ingestion Tier                  |
+     +--------------------------------|-------------------------------+
+                                      v
+              +-----------------------+-----------------------+
+              |                                               |
+              v                                               v
+ [ Aggregator A: ACTIVE ]                       [ Aggregator B: HOT STANDBY ]
+ [ RingBuffer A / 3 pinned cores ]              [ RingBuffer B / 3 pinned cores ]
+              |                                               |
+              +-----------------------+-----------------------+
+                                      |
+                         [ Sanity Filter + TOB BBO ]
+                                      |
+                                      v
+                              [ NATS Core ]
+                             /      |       \
+                            /       |        \
+                           v        v         v
+           [ WebSocket Gateways ] [ Redis Latest BBO ] [ Kafka Analytics ]
+                                      |
+                                      v
+                       [ Quote Service: HMAC on demand ]
+                                      |
+                                      v
+                      [ Quote Audit DB: issued/redeemed ]
 ```
 
 ### Why LMAX Disruptor (Not Kafka for the Hot Path)?
 
 | Aspect | LMAX Disruptor | Kafka / Message Queue |
 | :--- | :--- | :--- |
-| **Latency** | ~50–200ns per event (L1/L2 cache padding, no locks) | ~1–5ms per produce/consume (network + OS buffers) |
+| **Latency** | Sub-microsecond handoff inside one JVM; full tick processing is microseconds before network publish | ~1–5ms per produce/consume (network + OS buffers) |
 | **Throughput** | 25M+ events/sec single-threaded | ~100K–1M events/sec per partition |
 | **Allocation** | Zero (pre-allocated ring buffer, objects reused) | Each message = allocation + serialization |
-| **GC impact** | Zero GC pressure | Kafka client creates garbage (ByteBuffer allocations) |
+| **GC impact** | Allocation-free hot path minimizes GC pressure | Kafka client creates garbage (ByteBuffer allocations) |
 | **When to use Kafka** | N/A for hot path | ✅ Used for downstream recording/analytics |
 
-**Tradeoff**: Disruptor is single-JVM. If JVM crashes, in-flight ring buffer is lost. Acceptable because tick data is ephemeral — next tick replaces it within milliseconds.
+**Tradeoff**: Each Disruptor ring buffer is single-JVM and in-memory. The design compensates with two independent aggregators in active/hot-standby mode. If the active JVM crashes, the standby already has warmed BBO state and takes over publishing.
+
+### Aggregator Failover Model
+
+Both aggregators receive duplicated LP feeds and maintain independent ring buffers/BBO state:
+
+```text
+LP feed fanout
+    |
+    +--> Aggregator A ring buffer
+    +--> Aggregator B ring buffer
+```
+
+Only the active aggregator publishes the authoritative BBO stream. The standby computes continuously but suppresses publishing until it wins the leader lease. Each BBO update includes:
+
+```text
+pair_id
+best_bid
+best_ask
+source_lp_ids
+lp_sequence_numbers
+aggregator_epoch
+published_nanos
+```
+
+Consumers use `aggregator_epoch` and sequence numbers to detect failover and ignore stale updates from a demoted publisher.
 
 ---
 
-## 5. LMAX Disruptor & Cryptographic Quote Signer (Java)
+## 5. LMAX Disruptor & On-Demand Quote Signer (Java)
 
 ```java
 package com.financial.fx.streaming;
@@ -115,7 +140,6 @@ import com.lmax.disruptor.EventFactory;
 import com.lmax.disruptor.EventHandler;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -124,52 +148,98 @@ import java.util.Base64;
 public class Spec2_4 {
 
     public static class FxTickEvent {
-        public String lpId;
-        public String currencyPair;
-        public BigDecimal bid;
-        public BigDecimal ask;
-        public long timestamp;
+        public int lpId;
+        public int pairId;
+        public long bidMicropips;
+        public long askMicropips;
+        public long lpSequence;
+        public long receivedNanos;
 
-        public void set(String lpId, String currencyPair, BigDecimal bid, BigDecimal ask, long timestamp) {
+        public void set(
+                int lpId,
+                int pairId,
+                long bidMicropips,
+                long askMicropips,
+                long lpSequence,
+                long receivedNanos) {
             this.lpId = lpId;
-            this.currencyPair = currencyPair;
-            this.bid = bid;
-            this.ask = ask;
-            this.timestamp = timestamp;
+            this.pairId = pairId;
+            this.bidMicropips = bidMicropips;
+            this.askMicropips = askMicropips;
+            this.lpSequence = lpSequence;
+            this.receivedNanos = receivedNanos;
         }
     }
 
     public static final EventFactory<FxTickEvent> EVENT_FACTORY = FxTickEvent::new;
 
     public static class TopOfBookHandler implements EventHandler<FxTickEvent> {
+        private final long[][] latestBidByPairLp = new long[50][5];
+        private final long[][] latestAskByPairLp = new long[50][5];
+
         @Override
         public void onEvent(FxTickEvent event, long sequence, boolean endOfBatch) {
-            // Process Top-of-Book: mid-market = (bid + ask) / 2
+            latestBidByPairLp[event.pairId][event.lpId] = event.bidMicropips;
+            latestAskByPairLp[event.pairId][event.lpId] = event.askMicropips;
+
+            long bestBid = max(latestBidByPairLp[event.pairId]);
+            long bestAsk = min(latestAskByPairLp[event.pairId]);
+
+            // Publish BBO snapshot with pairId, bestBid, bestAsk, source sequence, epoch.
         }
     }
 
+    public record QuoteRequest(
+        String clientId,
+        String quoteId,
+        String pair,
+        String side,
+        long rateMicropips,
+        long maxNotionalMinor,
+        long spreadBps,
+        long expiresAtMs
+    ) {}
+
     public static class QuoteTokenSigner {
         private final SecretKeySpec secretKey;
+        private final ThreadLocal<Mac> mac;
 
         public QuoteTokenSigner(String secret) {
             this.secretKey = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            this.mac = ThreadLocal.withInitial(() -> {
+                try {
+                    Mac m = Mac.getInstance("HmacSHA256");
+                    m.init(secretKey);
+                    return m;
+                } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+                    throw new RuntimeException("Failed to initialize HMAC signer", e);
+                }
+            });
         }
 
-        public String generateQuoteToken(String quoteId, String pair, BigDecimal rate, long expiresAtMs) {
-            String payload = String.format("%s|%s|%s|%d", quoteId, pair, rate.toPlainString(), expiresAtMs);
-            try {
-                Mac mac = Mac.getInstance("HmacSHA256");
-                mac.init(secretKey);
-                byte[] hmacBytes = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
-                String signature = Base64.getUrlEncoder().withoutPadding().encodeToString(hmacBytes);
-                return payload + "." + signature;
-            } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-                throw new RuntimeException("Failed to sign quote token", e);
-            }
+        public String generateQuoteToken(QuoteRequest request) {
+            String payload = String.format(
+                "%s|%s|%s|%s|%d|%d|%d|%d",
+                request.clientId(),
+                request.quoteId(),
+                request.pair(),
+                request.side(),
+                request.rateMicropips(),
+                request.maxNotionalMinor(),
+                request.spreadBps(),
+                request.expiresAtMs());
+
+            Mac signer = mac.get();
+            signer.reset();
+            byte[] hmacBytes = signer.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+            String signature = Base64.getUrlEncoder().withoutPadding().encodeToString(hmacBytes);
+            return payload + "." + signature;
         }
     }
 }
 ```
+
+The Disruptor hot path uses integer LP/pair IDs and scaled long prices. `BigDecimal`, pair strings, JSON serialization, and HMAC signing are kept outside the tick path.
 
 ### HMAC vs JWT for Quote Tokens
 
@@ -186,29 +256,81 @@ public class Spec2_4 {
 - **Rate manipulation**: Rate is signed; any modification invalidates HMAC
 - **Key rotation**: Dual-key verify during 24h rotation window; zero-downtime
 
+### Quote Audit Records
+
+Raw ticks are best-effort analytics, but quote issuance/redemption is audit-grade because it represents a customer-facing economic commitment.
+
+Durably store:
+
+```text
+quote_id
+client_id
+currency_pair
+side
+rate
+spread_bps
+max_notional
+issued_at
+expires_at
+redeemed_at
+source_bbo_sequence
+aggregator_epoch
+token_signature_hash
+```
+
+---
+
+## 5.5 Event-Driven TOB Aggregation Mechanics
+
+The Top of Book (TOB) Aggregation Engine does **not** buffer or wait to collect quotes from all 5 banks before executing the matching math. Waiting for slower banks would introduce catastrophic "stale price" latency. Instead, computation is radically continuous and event-driven:
+
+1. **The State Array:** The engine holds a tiny, pre-allocated 5-slot array in RAM for every currency pair, tracking the absolute freshest price from each LP: E.g., `[JPM, Citi, Barclays, UBS, Deutsche]`.
+2. **Instant Overwrite:** When a new tick arrives over the network (e.g., Citi updates their `EUR/USD` price at exactly `T=0.045s`), the engine instantly overwrites the `Citi` slot.
+3. **Triggered Recalculation:** Whenever any slot is overwritten, the aggregation thread scans the 5 cache-resident LP slots for that pair, computes the current highest Bid and lowest Ask, and publishes the composite BBO to NATS Core. The scan is O(5) and negligible relative to network publish latency.
+
+Quote locks are not generated during this tick loop. The Quote Service reads the latest BBO snapshot when a checkout or trading screen asks for a locked quote, applies spread/risk/notional checks, writes an audit-grade quote issuance record, and signs the token.
+
 ---
 
 ## 6. Backpressure Management Strategy
 
-```mermaid
-flowchart LR
-    Ingest[Raw LP Ticks 100k/sec] --> Conflation[Conflation Buffer 100ms Window]
-    Conflation --> Sampler[Throttled Sampler Max 10 updates/sec per pair]
-    Sampler --> Fanout[WebSocket Push to Edge]
+```text
+               [ 5 Raw LP Ticks ]
+                       |
+               [ Ingress RingBuffer ] (Fast-path memory lock)
+                       |
+             [ TOB Aggregation Engine ]
+                       |
+          +------------+------------+
+          |                         |
+(Raw NATS Core Stream)      (Conflation Buffer / Throttled Sampler)
+          |                         |
+[ Internal HFT Consumers ]  [ WebSocket Edge Gateway ]
+    (Max ticks/sec)             (10 updates/sec/pair)
 ```
 
 ### Conflation & Sampling Mechanics
-1. **Internal Core Engine (Sub-5ms Path)**: Retains raw tick speed for HFT consumers.
-2. **Edge Gateway Path**: 100ms conflation window. 500 ticks for `USD/SGD` in 100ms → only latest snapshot broadcast.
+1. **Internal Core Engine (Sub-5ms Path)**: Subscribes directly to Core NATS. Retains absolute raw tick speed for automated backend HFT (High-Frequency Trading) consumers.
+2. **Edge Gateway Path (Mobile Users)**: Humans cannot read 100 flashing prices a second. The *Throttled Sampler* acts as a conflation buffer. If 500 ticks for `USD/SGD` arrive in 100ms, it physically discards the first 499 and only pushes the absolute freshest snapshot to the external WebSockets.
 
 ### Backpressure Escalation Ladder
 
+The ring buffer is already large relative to the target load:
+
+```text
+262,144 slots / 100,000 ticks/sec ≈ 2.6 seconds of buffer
+```
+
+For a system targeting sub-5ms internal latency, sustained ring-buffer growth means something is unhealthy: aggregation stalled, publishing blocked, CPU saturated, or an LP is flooding bad data. The base design does not require a separate pre-ring conflation buffer.
+
 | Level | Ring Buffer Fill | Action | Impact |
 | :--- | :--- | :--- | :--- |
-| 0 Normal | < 50% | Process all ticks | Full fidelity |
-| 1 Warning | 50–75% | Drop lowest-priority LP ticks | Reduced diversity, BBO still valid |
-| 2 Critical | 75–90% | Conflate to last-value-per-pair | ≤ 50 ticks/sec. BBO may lag 1–2ms. |
-| 3 Emergency | > 90% | Circuit-break slowest LP connector | 4 remaining LPs provide pricing |
+| 0 Normal | < 50% | Process every tick | Normal operation |
+| 1 Warning | 50–75% | Alert and inspect slow stage metrics | No tick dropping; this should be temporary |
+| 2 Critical | 75–90% | Apply backpressure to LP connectors; skip already-stale queued ticks only when safe | Protects the hot path, may reduce raw tick fidelity |
+| 3 Emergency | > 90% | Mark affected pairs degraded or halt quote issuance | Safer to stop issuing quotes than publish stale or biased prices |
+
+“Skip stale queued ticks” means the system may ignore an older unprocessed tick only when a newer tick for the same LP and pair has already been processed or is available. It must never silently drop the only available quote for an LP/pair and pretend pricing is healthy.
 
 ---
 
@@ -217,19 +339,21 @@ flowchart LR
 | Segment | Latency | Optimization |
 | :--- | :--- | :--- |
 | LP → Connector (network) | ~0.5–1ms | Co-located datacenter, cross-connect |
-| Connector → Disruptor publish | ~0.1μs | `Unsafe.putOrderedLong()`, no lock |
-| Disruptor → Outlier filter | ~0.2μs | Branch prediction (99.9% pass) |
-| Outlier → TOB aggregation | ~0.2μs | Array lookup by pair index (not HashMap) |
-| TOB → HMAC sign | ~1μs | AES-NI hardware acceleration |
-| HMAC → NATS publish | ~0.5ms | In-VPC, zero-copy `io_uring` |
+| Connector parse + normalize | ~5–50μs | Binary/FIX decode into integer IDs and scaled longs |
+| Connector → Disruptor publish | <1μs | Lock-free handoff, pre-allocated ring slot |
+| Disruptor → sanity filter | ~1–10μs | Staleness, crossed-market, jump-band, and quorum checks |
+| Sanity filter → TOB aggregation | ~1–10μs | Array lookup by pair/LP index; no `BigDecimal` |
+| TOB → NATS Core publish | ~0.3–1ms | Same-AZ internal publish |
 | NATS → subscriber | ~0.5ms | Same AZ, subject routing |
-| **Total P99** | **~1.5–2.5ms typical** | 5ms ceiling = 2× jitter margin |
+| **Total P99** | **~1.5–3.5ms typical** | 5ms ceiling = jitter margin for same-AZ internal consumers |
 
-### Jitter Sources That Erode the 5ms Budget
-1. **GC pauses**: G1GC can inject 5–20ms. Mitigation: Shenandoah/ZGC (< 1ms pauses) or off-heap.
-2. **Kernel interrupts on pinned cores**: Mitigated by `isolcpus + nohz_full`.
-3. **NATS broker GC**: Go runtime GC. Tune `GOGC=400` to reduce frequency.
-4. **Network micro-bursts**: Ring buffer absorbs; 262K slots = 2.6s headroom.
+### Jitter Sources & Zero-Allocation Defenses
+1. **Garbage Collection (GC) Pauses**: The ultimate jitter killer. 
+   * *Mitigation (Zero-Allocation Pattern)*: The Ring Buffer is completely pre-populated on startup. In the tick hot path, incoming ticks overwrite primitive fields, and currency pairs are mapped to integer IDs before aggregation. GC pressure is minimized and continuously monitored; the design avoids claiming that GC can never occur anywhere in the JVM.
+2. **Kernel OS Interrupts**: Background OS tasks can suddenly context-switch the JVM trading thread off the CPU.
+   * *Mitigation (`isolcpus`)*: We use the Linux kernel parameter `isolcpus` to physically isolate specific CPU cores, banning the OS scheduler from running background tasks on them. The critical Java trading threads are then strictly pinned to those virgin cores.
+3. **Thread Locking (Mutex Contention)**: Standard locks freeze threads, introducing massive jitter.
+   * *Mitigation (Disruptor Sequence Barriers)*: The application uses dependent memory barriers instead of locks. The sanity filter advances a cursor, the BBO aggregation thread waits on that cursor, and the publisher waits on the BBO cursor. HMAC signing is handled by the Quote Service outside this sequence.
 
 ---
 
@@ -239,6 +363,7 @@ flowchart LR
 | :--- | :--- | :--- | :--- | :--- |
 | **Single LP disconnect** | BBO may widen | Stale detector: no tick > 200ms → `STALE` | Exclude from TOB. Auto-reconnect with backoff. Alert if > 60s. | < 1s |
 | **All LPs stale** | No pricing; cannot issue quotes | All 5 stale within 2s | Circuit break: return `503`. Publish `FX_HALTED`. Manual verification. | Manual |
+| **Active aggregator crash** | Active BBO publisher stops | Heartbeat/leader lease missed | Hot standby already has duplicated feed state; promote standby publisher with new epoch. | < 1s |
 | **Ring buffer overflow** | Events overwritten | Sequence gaps in handler | Should never happen with backpressure ladder. Emergency: increase to $2^{20}$. | Config |
 | **HMAC key compromised** | Forged quote tokens | Anomaly detection on redeemed rates | Emergency rotation, invalidate outstanding tokens (max 30s window). | < 5min |
 | **NATS broker crash** | Subscribers lose updates | Cluster health monitor | 3-node Raft failover (< 2s). Full loss: fallback to Redis cache. | < 2s |
@@ -264,12 +389,12 @@ flowchart LR
 
 ### Internal Hot-Path Tracing (No OpenTelemetry Overhead)
 
-Standard OpenTelemetry adds ~5μs per span — unacceptable when total budget is 50μs. Custom ring-buffer-embedded timestamps sampled by a background thread:
+Standard OpenTelemetry adds avoidable overhead and allocation pressure inside the tick loop. The hot path uses custom ring-buffer-embedded timestamps sampled by a background thread:
 
 ```
 [Sampled Tick: EURUSD @ 1725811200123ms]
   connector.receive → +100ns → disruptor.publish → +200ns → outlier.filter
-  → +200ns → tob.aggregate → +1μs → hmac.sign → +500μs → nats.publish
+  → +2μs → tob.aggregate → +500μs → nats.publish
   → +500μs → subscriber.receive  |  TOTAL: ~1.0ms
 ```
 
@@ -278,12 +403,12 @@ Full OpenTelemetry tracing used only on non-latency-sensitive Kafka recording pa
 ---
 
 ## 10. Self-Evaluation Checklist
-- [x] **Component Diagram**: LP connectors → Disruptor → NATS fan-out → edge gateways.
+- [x] **Component Diagram**: LP connectors → active/hot-standby Disruptor aggregators → NATS Core fan-out → edge gateways.
 - [x] **Java LMAX Disruptor**: Zero-allocation event model and handler.
-- [x] **Java HMAC Signer**: Signed `QuoteToken` with security analysis and JWT comparison.
+- [x] **Java HMAC Signer**: On-demand signed `QuoteToken` with security analysis and JWT comparison.
 - [x] **Backpressure**: 4-level escalation ladder with conflation strategy.
 - [x] **Scaling**: Tick volume model (5K–100K/sec), CPU pinning, downstream fan-out.
-- [x] **Latency Budget**: Nanosecond-level per-segment breakdown, P99 < 5ms.
-- [x] **Disruptor vs Kafka**: Quantitative comparison (50ns vs 1ms).
+- [x] **Latency Budget**: Same-AZ hot-path breakdown, P99 < 5ms.
+- [x] **Disruptor vs Kafka**: Quantitative comparison for hot-path handoff vs durable messaging.
 - [x] **Failure Points**: 7 modes including LP dropout, key compromise, clock drift.
 - [x] **Metrics & Tracing**: Low-overhead internal tracing, LP health dashboard.

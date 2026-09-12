@@ -44,6 +44,18 @@ Design a ticketing platform for high-demand events (concerts, sports) where user
 | Orders | ~50K per major event | ~25 MB |
 | Total hot data | | < 100 MB per event — fits entirely in Redis |
 
+### Database & Redis Scaling
+* **Target Load**: 100K–500K active users during a major on-sale, with up to 80K hot seats/holds for one event.
+* **Database (PostgreSQL)**: 1x 16-vCPU / 64 GB RAM for durable orders, payment intents, audit, and confirmed seat assignments.
+* **Redis Inventory Shards**: Redis Cluster spreads different events across shards. A single hot event must be assigned to one authoritative event shard unless the event is deliberately partitioned by section/zone.
+* **Important Redis Cluster constraint**: A Lua script is atomic only for keys in the same Redis hash slot. Multi-seat holds must operate within one event/section shard, or use hash tags such as `{eventId}` / `{eventId:sectionId}` so all relevant keys are co-located.
+
+### Application Server Scaling (Hold Service)
+* **Target Load**: 50,000 hold attempts per second entering the waiting room; admitted hold attempts are rate-limited to inventory capacity.
+* **Hardware**: 16-vCPU / 64 GB RAM nodes.
+* **Capacity**: Because Redis Lua requires zero row-lock waiting, each API pod handles ~8,000 TPS.
+* **Nodes Needed**: Deploy 8 API instances per AZ (24 total) prior to the 30-sec on-sale flash surge.
+
 ### Why the On-Sale Surge Is the Hard Problem
 
 Steady-state ticketing is trivial (100 TPS). The entire design exists for the **30-second thundering herd** when sales open:
@@ -55,36 +67,25 @@ Steady-state ticketing is trivial (100 TPS). The entire design exists for the **
 
 ## 4. Service Architecture
 
-```mermaid
-flowchart TD
-    Client[Web / Mobile Client] -->|Browsing| CDN[CDN / Edge Cache]
-    CDN -->|Cache MISS| CatalogSvc[Catalog Service]
-    CatalogSvc -->|Read| CatalogDB[(Catalog DB PostgreSQL)]
-    
-    Client -->|Seat Map| CDN
-    CDN -->|Cache MISS every 1-3s| AvailSvc[Availability Service]
-    AvailSvc -->|Read| Redis[(Redis Cluster)]
-    
-    Client -->|Reserve Seats| QueueGateway[Surge Queue Gateway]
-    QueueGateway -->|Enqueue if surge active| SurgeQueue[SQS / In-Memory Queue]
-    SurgeQueue --> HoldSvc[Hold Service]
-    QueueGateway -->|Direct if normal load| HoldSvc
-    
-    HoldSvc -->|Atomic Lua script| Redis
-    HoldSvc -->|Schedule expiry| DelayQ[Delay Queue RabbitMQ DLX]
-    
-    Client -->|Checkout| OrderSvc[Order Service]
-    OrderSvc -->|Confirm hold| Redis
-    OrderSvc -->|Process payment| PaymentGW[Payment Gateway Stripe / Adyen]
-    OrderSvc -->|Persist order| OrderDB[(Order DB PostgreSQL)]
-    
-    DelayQ -->|Expiry event| ExpiryWorker[Expiry Worker]
-    ExpiryWorker -->|Release seats| Redis
-    
-    subgraph Background
-        ReconWorker[Payment Reconciliation Worker] -->|Poll unresolved| PaymentGW
-        ReconWorker -->|Settle or reverse| OrderDB
-    end
+```text
+[ Client ] ---> [ CDN ] ---> [ Catalog / Availability Service ]
+                 |
+                 v (Join sale / reserve)
+        [ Virtual Waiting Room ]
+                 |
+                 | admission token at controlled drain rate
+                 v
+           [ Hold Service ] ----------> [ Redis Event Shard (Lua) ]
+                 |                             |
+                 v (expiry sorted set)         v (Timeout Release)
+       [ Redis ZSET Expiry Index ] ---> [ Expiry Worker ]
+                 |
+                 v (Checkout)
+           [ Order Service ]
+                 |
+        +--------+--------+
+        v                 v
+   [ Stripe ]        [ Order DB ]
 ```
 
 ### Service Boundaries & Responsibilities
@@ -92,32 +93,30 @@ flowchart TD
 | Service | Responsibility | Data Store | Consistency |
 | :--- | :--- | :--- | :--- |
 | **Catalog Service** | Event metadata, venue, pricing, search | PostgreSQL + Elasticsearch | Eventually consistent (indexed with ~2s lag) |
-| **Availability Service** | Seat status reads for UI rendering | Redis (read from replica) | Eventually consistent (~1–3s stale via CDN) |
-| **Hold Service** | Atomic seat reservation with expiry | Redis (write to primary, Lua script) | Strongly consistent (single-threaded Lua) |
+| **Availability Service** | Seat status reads for UI rendering | CDN snapshots + Redis read replica | Eventually consistent (~1–3s stale via CDN) |
+| **Hold Service** | Atomic seat reservation with expiry | Redis event shard primary, Lua script | Strongly consistent for that event/section shard |
 | **Order Service** | Payment orchestration, order persistence | PostgreSQL (ACID) | Strongly consistent |
-| **Expiry Worker** | Release expired holds | Redis + PostgreSQL | Idempotent release |
+| **Expiry Worker** | Release expired holds | Redis sorted set + Lua release script | Idempotent release with ~±2s target |
 | **Recon Worker** | Resolve payment timeouts | PostgreSQL + Payment API | Reconcile ambiguous charges |
 
 ---
 
 ## 5. Seat State Machine
 
-```mermaid
-stateDiagram-v2
-    [*] --> AVAILABLE : Event created / inventory loaded
-    
-    AVAILABLE --> HELD : reserveSeats(userId, seatIds, holdDuration)
-    
-    HELD --> SOLD : confirmOrder(holdId) [Payment successful]
-    HELD --> AVAILABLE : releaseHold(holdId) [User cancels]
-    HELD --> AVAILABLE : expiryWorker(holdId) [Timeout exceeded]
-    HELD --> PAYMENT_PENDING : payment initiated but outcome unknown
-    
-    PAYMENT_PENDING --> SOLD : Payment provider confirms charge
-    PAYMENT_PENDING --> AVAILABLE : Payment provider confirms decline / void
-    PAYMENT_PENDING --> SOLD : Reconciliation worker confirms charge after timeout
-    
-    SOLD --> [*] : E-ticket issued
+```text
+[*] ---> [ AVAILABLE ]
+               |
+               +-- reserveSeats() ---> [ HELD ]
+                                         |
+                            +------------+------------+
+                            |            |            |
+                            v            v            v
+                     [ AVAILABLE ] [ PAYMENT_PENDING ] [ AVAILABLE ]
+                    (Cancel/Expiry)   /          \       (Payment start failed)
+                                     /            \
+                                    v              v
+                                [ SOLD ]      [ AVAILABLE ]
+                              (Confirmed)    (Declined / Refunded)
 ```
 
 ### The Critical State: `PAYMENT_PENDING`
@@ -137,20 +136,23 @@ Scenario:
 **Why not just retry?** If the charge succeeded, retrying would double-charge the user.
 
 **Resolution protocol:**
-1. Before calling payment API: save `payment_intent_id` + `idempotency_key` in `PAYMENT_PENDING` state
-2. On timeout: do NOT release seats. Move to `PAYMENT_PENDING` state.
+1. Before calling payment API: save `payment_intent_id` + `idempotency_key` in the order DB and atomically move Redis seats from `HELD` to `PAYMENT_PENDING` for that `holdId`.
+2. On timeout: do NOT release seats. Keep seats in `PAYMENT_PENDING`.
 3. Reconciliation worker polls Stripe's `GET /payment_intents/{id}` every 30 seconds for up to 10 minutes
 4. If confirmed: move to `SOLD`, issue e-ticket
 5. If declined/not found after 10 minutes: reverse the hold, release seats to `AVAILABLE`
 
 **Why keep seats locked during `PAYMENT_PENDING`?** If we release, another user could buy the same seat. Then Stripe confirms the first charge → two orders for the same seat. Catastrophic oversell.
 
+Holds are soft and ephemeral. Confirmed orders and sold seat assignments are durable in PostgreSQL. If Redis loses an unconfirmed hold, the user retries; if payment has started, the order DB and reconciliation worker recover the `PAYMENT_PENDING` path.
+
 ---
 
 ## 6. Atomic Seat Hold Implementation (Redis Lua)
 
 ```lua
--- KEYS[1] = event:{eventId}:seats (hash: seatId → status|holdId|userId|expiresAt)
+-- KEYS[1] = event:{eventId}:seats (hash: seatId → compact state string)
+-- KEYS[2] = event:{eventId}:hold_expiry (zset: holdId → expiresAt)
 -- ARGV[1] = holdId
 -- ARGV[2] = userId  
 -- ARGV[3] = expiresAt (epoch ms)
@@ -169,8 +171,8 @@ for i = 4, #ARGV do
     if current == nil or current == false then
         return cjson.encode({ok=false, error="SEAT_NOT_FOUND", seat=seat_id})
     end
-    local status = cjson.decode(current)
-    if status.state ~= "AVAILABLE" then
+    local state = string.sub(current, 1, 1)
+    if state ~= "A" then
         return cjson.encode({ok=false, error="SEAT_UNAVAILABLE", seat=seat_id})
     end
     table.insert(seats, seat_id)
@@ -178,14 +180,21 @@ end
 
 -- Phase 2: Atomically reserve ALL seats (all-or-nothing)
 for _, seat_id in ipairs(seats) do
-    local hold_data = cjson.encode({
-        state="HELD", holdId=hold_id, userId=user_id, expiresAt=expires_at
-    })
+    -- Compact encoding avoids cjson decode/encode on the hot path:
+    -- A = available
+    -- H|holdId|userId|expiresAt = held
+    -- P|holdId|orderId|paymentIntentId = payment pending
+    -- S|orderId = sold
+    local hold_data = "H|" .. hold_id .. "|" .. user_id .. "|" .. expires_at
     redis.call('HSET', event_key, seat_id, hold_data)
 end
 
+redis.call('ZADD', KEYS[2], expires_at, hold_id)
+
 return cjson.encode({ok=true, holdId=hold_id, seatCount=#seats})
 ```
+
+`cjson` is only used to format the Lua response. Seat state itself is stored as compact strings to avoid decoding JSON for every checked seat during the surge path.
 
 ### Why All-or-Nothing for Multi-Seat Holds?
 
@@ -201,7 +210,7 @@ public List<String> findBestAdjacentSeats(String eventId, String section, int co
     // 1. Load seat map for section (pre-loaded in Redis as sorted set by row+number)
     // 2. Sliding window: find first contiguous run of 'count' AVAILABLE seats
     //    within the same row, closest to center (lower seat numbers often preferred)
-    // 3. Return seat IDs or empty list if no contiguous block exists
+    // 3. Try reserve via Lua. If another user took one of the seats, retry a few times.
     
     List<SeatInfo> sectionSeats = loadSectionSeats(eventId, section);
     // Group by row, scan each row for contiguous AVAILABLE windows
@@ -214,6 +223,8 @@ public List<String> findBestAdjacentSeats(String eventId, String section, int co
 ```
 
 **Why not use a database query for best-available?** Under 50K TPS surge, a PostgreSQL `SELECT ... WHERE status = 'AVAILABLE' ORDER BY row, number LIMIT N FOR UPDATE` would create massive lock contention. The Redis Lua approach keeps the hot path lock-free (single-threaded atomicity).
+
+The Java scan is a candidate generator, not the source of truth. Another user may reserve the candidate seats before the Lua script runs. In that case the Lua script returns `SEAT_UNAVAILABLE`, and the service retries candidate generation a small bounded number of times or asks the user to choose another section.
 
 ---
 
@@ -229,42 +240,33 @@ Without a queue, when 500K users click "Reserve" simultaneously:
 
 ### Virtual Waiting Room Pattern
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant Edge as CDN / Edge
-    participant Queue as Surge Queue
-    participant HoldSvc as Hold Service
-    
-    User->>Edge: GET /event/{id}/availability
-    Edge-->>User: Seat map (cached, 1s stale)
-    
-    User->>Queue: POST /reserve (seatIds, userId)
-    Queue-->>User: HTTP 202 Accepted (position: 14,392 / ETA: ~45s)
-    
-    loop Poll position
-        User->>Queue: GET /reserve/status?token=xxx
-        Queue-->>User: position: 3,201 / ETA: ~10s
-    end
-    
-    Queue->>HoldSvc: Process reservation (FIFO)
-    HoldSvc-->>Queue: Hold result
-    Queue-->>User: HTTP 200 (holdId, expiresAt) or HTTP 410 Gone (sold out)
+```text
+User                   Waiting Room                  Hold Service
+ |                          |                              |
+ |-- 1. Join sale --------->|                              |
+ |<- 2. 202 Position ------|                              |
+ |                          |                              |
+ |-- 3. Poll status ------>|                              |
+ |<- 4. Admission token ---|                              |
+ |                          |                              |
+ |-- 5. Reserve + token ---------------------------------->|
+ |<----------------------- 6. 200 Hold ID / Sold out ------|
 ```
 
 ### Queue Design Decisions
 
 | Decision | Choice | Alternative | Tradeoff |
 | :--- | :--- | :--- | :--- |
-| **Queue type** | In-memory distributed queue (Redis List or SQS FIFO) | No queue (direct writes) | Queue adds ~30s latency for users at the back, but prevents thundering herd and ensures fairness |
-| **Drain rate** | 5,000 dequeues/sec (tuned to hold service capacity) | Unlimited | Controlled drain prevents inventory service overload. Rate = f(Redis Lua throughput, target P99) |
+| **Queue type** | Virtual waiting room using Redis sorted set/list + HMAC admission tokens | SQS FIFO for interactive holds | Waiting room controls admission while the actual hold request remains synchronous. SQS is better for async jobs than visible queue positions. |
+| **Drain rate** | 5,000 admissions/sec (tuned to hold service capacity) | Unlimited | Controlled admission prevents inventory service overload. Rate = f(Redis Lua throughput, target P99) |
 | **Fairness** | FIFO (first-come-first-served) | Random / lottery | FIFO is perceived as fair. Lottery is better for extreme ratios (e.g., 100 tickets, 5M users) but users prefer "I was earlier" over random chance. |
-| **Position updates** | Client polls every 2s | Server-sent events / WebSocket | Polling is simpler, CDN-cacheable for position ranges. SSE creates 500K persistent connections — prohibitive. |
+| **Position updates** | Client polls every 2s | Server-sent events / WebSocket | Polling is simpler. SSE/WebSocket at 500K connections is possible but more operationally expensive. |
 | **Queue activation** | Only for the first 5 minutes of on-sale, or when TPS > 10K | Always on | Queue overhead is unnecessary at steady-state. A circuit-breaker activates the queue when `hold.request_rate > 10,000/sec`. |
 
 ### Queue anti-gaming:
 - **One reservation per user per event**: Enforced by `userId` in the queue. Duplicate submissions return the same queue position.
 - **Position token**: HMAC-signed token prevents users from fabricating queue positions.
+- **Admission token**: Short-lived HMAC token authorizes a user to call Hold Service for one event within a small time window.
 - **Bot detection**: CAPTCHA challenge before entering queue for flagged IPs (abnormal request patterns).
 
 ---
@@ -274,7 +276,7 @@ sequenceDiagram
 | Data | Cache | TTL | Invalidation | Consistency |
 | :--- | :--- | :--- | :--- | :--- |
 | Event metadata (title, date, venue) | CDN (CloudFront) | 5 min | On admin update: CDN invalidation | Eventually consistent (acceptable) |
-| Seat map / availability | CDN + Redis read replica | **1–3s** | Redis pub/sub pushes diffs to edge; CDN TTL = 1s | 1–3s stale. User may see seat as available, attempt hold, get "SEAT_UNAVAILABLE" → acceptable. |
+| Seat map / availability | CDN-cached snapshots generated from Redis replica | **1–3s** | Snapshot regenerated every 1s during surge | 1–3s stale. User may see seat as available, attempt hold, get "SEAT_UNAVAILABLE" → acceptable. |
 | Section-level availability counts | Application cache (Caffeine) | 500ms | Redis keyspace notification on state change | Near-real-time aggregate for UI |
 | Individual seat status | Redis primary (via Lua script) | No TTL (always live) | Lua script is the source of truth | **Strongly consistent** (hold/checkout path) |
 | Pricing | CDN | 30s | Low change frequency | Eventually consistent |
@@ -285,7 +287,7 @@ During a high-demand sale, the seat map changes thousands of times per second. S
 
 1. **Availability is aspirational**: User sees a seat as available → clicks reserve → if taken, instant feedback ("Seat no longer available, please try another"). Cost: one wasted round-trip (<200ms).
 2. **Checkout is authoritative**: The Lua script is the single source of truth. It never oversells regardless of what the UI shows.
-3. **CDN absorbs 99% of read load**: 200K seat-map requests/sec → CDN serves 199K from cache; only ~2K reach Redis per second.
+3. **CDN absorbs 99% of read load**: 200K seat-map requests/sec → CDN serves cached snapshots; only snapshot generation reads from Redis.
 
 ---
 
@@ -293,35 +295,31 @@ During a high-demand sale, the seat map changes thousands of times per second. S
 
 ### Payment Flow
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant OrderSvc as Order Service
-    participant PayGW as Payment Gateway (Stripe)
-    participant DB as Order DB
-    participant Redis as Inventory Redis
-    
-    User->>OrderSvc: POST /checkout (holdId, paymentMethod)
-    OrderSvc->>DB: INSERT order (status=PAYMENT_PENDING, idempotency_key=K1)
-    OrderSvc->>PayGW: POST /charges (idempotency_key=K1, amount, card)
-    
-    alt Payment Succeeds
-        PayGW-->>OrderSvc: 200 OK (charge confirmed)
-        OrderSvc->>Redis: Lua: SET seat.state = SOLD
-        OrderSvc->>DB: UPDATE order SET status = CONFIRMED
-        OrderSvc-->>User: 200 OK (order confirmed, e-ticket)
-    else Payment Declined
-        PayGW-->>OrderSvc: 402 Payment Required
-        OrderSvc->>Redis: Lua: SET seat.state = AVAILABLE
-        OrderSvc->>DB: UPDATE order SET status = DECLINED
-        OrderSvc-->>User: 402 (payment failed, seats released)
-    else Payment Timeout (Ambiguous)
-        PayGW-->>OrderSvc: Timeout / 5xx
-        OrderSvc->>DB: UPDATE order SET status = PAYMENT_PENDING
-        Note over OrderSvc: DO NOT release seats
-        OrderSvc-->>User: 202 Accepted (checking payment status)
-    end
+```text
+User           Order Service             Stripe            Order DB        Redis
+ |                   |                      |                  |             |
+ |-- 1. Checkout --->|                      |                  |             |
+ |                   |-- 2. INSERT ORDER_PAYMENT_PENDING ----->|             |
+ |                   |-- 3. Lua HELD -> PAYMENT_PENDING -------------------->|
+ |                   |-- 4. POST /payment_intents(confirm) -> |             |
+ |                   |                      |                  |             |
+ |             +-----+-----+                |                  |             |
+ |             | Success   |                |                  |             |
+ |             +-----------+                |                  |             |
+ |                   |<-- 5. 200 OK --------|                  |             |
+ |                   |-- 6. Lua PAYMENT_PENDING -> SOLD -------------------->|
+ |                   |-- 7. UPDATE CONFIRMED + seat rows ---->|             |
+ |<- 8. 200 E-Ticket-|                      |                  |             |
+ |                   |                      |                  |             |
+ |             +-----+-----+                |                  |             |
+ |             | Ambiguous |                |                  |             |
+ |             +-----------+                |                  |             |
+ |                   |<-- 5. Timeout -------|                  |             |
+ |                   |-- 6. KEEP PAYMENT_PENDING ------------>|             |
+ |<- 7. 202 Pending -|                      |                  |             |
 ```
+
+Every payment call uses the provider's idempotency key. The Redis confirmation script checks that each seat is still `PAYMENT_PENDING` for the same `holdId` and `orderId` before writing `SOLD`.
 
 ### Reconciliation Worker (Resolves Ambiguous Payments)
 
@@ -335,12 +333,18 @@ public void reconcileAmbiguousPayments() {
         
         switch (intent.getStatus()) {
             case "succeeded" -> {
-                inventoryService.confirmSeat(order.getSeatIds());
-                orderRepo.updateStatus(order.getId(), "CONFIRMED");
-                notificationService.sendETicket(order);
+                boolean confirmed = inventoryService.confirmSeat(
+                    order.getSeatIds(), order.getHoldId(), order.getId());
+                if (confirmed) {
+                    orderRepo.updateStatus(order.getId(), "CONFIRMED");
+                    notificationService.sendETicket(order);
+                } else {
+                    stripe.refunds().create(order.getPaymentIntentId());
+                    orderRepo.updateStatus(order.getId(), "REFUNDED_HOLD_LOST");
+                }
             }
             case "canceled", "requires_payment_method" -> {
-                inventoryService.releaseSeats(order.getSeatIds());
+                inventoryService.releaseSeats(order.getSeatIds(), order.getHoldId(), order.getId());
                 orderRepo.updateStatus(order.getId(), "DECLINED");
                 notificationService.sendPaymentFailed(order);
             }
@@ -348,7 +352,7 @@ public void reconcileAmbiguousPayments() {
                 if (order.getCreatedAt().isBefore(Instant.now().minus(Duration.ofMinutes(10)))) {
                     // Timeout: void the charge attempt, release seats
                     stripe.paymentIntents().cancel(order.getPaymentIntentId());
-                    inventoryService.releaseSeats(order.getSeatIds());
+                    inventoryService.releaseSeats(order.getSeatIds(), order.getHoldId(), order.getId());
                     orderRepo.updateStatus(order.getId(), "TIMED_OUT");
                 }
                 // Else: still processing, check again next cycle
@@ -364,13 +368,15 @@ public void reconcileAmbiguousPayments() {
 
 **Proof by state machine**:
 1. Hold expires → Expiry worker executes Lua: `IF state == "HELD" AND holdId == H1 THEN state = "AVAILABLE"`
-2. Payment confirmation → Order service executes Lua: `IF state == "HELD" AND holdId == H1 THEN state = "SOLD"`
-3. Redis is single-threaded. One executes first.
-4. **Case A**: Expiry runs first → state = AVAILABLE. Payment Lua sees `state != "HELD"` → returns `HOLD_EXPIRED`. Order service issues refund.
-5. **Case B**: Payment runs first → state = SOLD. Expiry Lua sees `state != "HELD"` → returns `ALREADY_PROCESSED`. No-op.
-6. **In both cases**: seat is in exactly one state. No oversell.
+2. Payment starts before hold expiry → Order service executes Lua: `IF state == "HELD" AND holdId == H1 THEN state = "PAYMENT_PENDING"`
+3. Payment confirmation → Order service executes Lua: `IF state == "PAYMENT_PENDING" AND holdId == H1 AND orderId == O1 THEN state = "SOLD"`
+4. Redis is single-threaded. One script executes first.
+5. **Case A**: Expiry runs before payment starts → state = AVAILABLE. Payment-start Lua sees `state != HELD` → no charge is attempted.
+6. **Case B**: Payment-start runs first → state = PAYMENT_PENDING. Expiry Lua sees `state != HELD` → no-op.
+7. **Case C**: Payment succeeds but confirmation cannot set SOLD because state no longer matches `holdId/orderId` → order is not confirmed and payment is refunded.
+8. **In all cases**: seat is in exactly one state. No oversell.
 
-**The refund path in Case A** is the key: if the user was charged but the hold expired, we must issue an automatic refund. The reconciliation worker handles this — it detects `order.status = CONFIRMED` but `seat.state = AVAILABLE` (inconsistency) and triggers a refund.
+The key rule is: never mark the order `CONFIRMED` until the Redis confirmation script successfully changes the matching `PAYMENT_PENDING` seats to `SOLD`.
 
 ---
 
@@ -378,12 +384,12 @@ public void reconcileAmbiguousPayments() {
 
 | Failure | Impact | Detection | Recovery | RTO |
 | :--- | :--- | :--- | :--- | :--- |
-| **Redis primary crash** | All holds lost; seats in unknown state | Sentinel failover; replica promoted < 15s | Replica has near-latest state (sub-100ms lag with `wait 1 0`). Any holds that were in Redis but not yet in PostgreSQL: users retry. Reconciliation worker resolves orders with `PAYMENT_PENDING` status. | < 15s |
-| **Hold expiry not firing** (DLQ issue) | Seats stuck in HELD indefinitely | Sweeper: `SELECT * FROM holds WHERE status = 'HELD' AND expires_at < NOW() - INTERVAL '2 min'` | Sweeper force-releases stale holds every 60s. Defense-in-depth for missed delay queue messages. | < 3min |
+| **Redis primary crash** | Ephemeral holds may be lost; confirmed DB orders remain durable | Redis failover; inventory consistency checks | Promote replica if safe. Rebuild `SOLD` seats from PostgreSQL confirmed orders. Unpaid holds are soft reservations and users retry. `PAYMENT_PENDING` orders are reconciled by payment worker. | < 15s failover; rebuild event-dependent |
+| **Hold expiry worker lag** | Seats stuck in HELD past expiry | Redis sorted-set lag metric: expired holds still present | Expiry workers poll `hold_expiry` zset every second and release with Lua. Sweeper repairs holds older than expiry + 2min. | ±2s target, <3min repair |
 | **Payment provider outage** | No checkouts can complete | Payment API error rate > 50% for > 30s | Circuit breaker: stop accepting new checkouts, extend hold duration by 5 min (prevent expiry during outage). Display "Payment temporarily unavailable" to users. | Depends on provider |
-| **On-sale thundering herd crashes hold service** | Users see 503 errors | Request rate > capacity threshold | Virtual queue activates at 10K TPS. Hold service is shielded behind queue. Without queue: auto-scale pods (EKS HPA on CPU > 70%), but scaling takes ~60s — too slow for 30-second surge. Queue is the only viable answer. | < 5s (queue activation) |
+| **On-sale thundering herd crashes hold service** | Users see 503 errors | Request rate > capacity threshold | Virtual waiting room activates at 10K TPS and issues admission tokens at controlled rate. Hold service remains synchronous for admitted users. | < 5s (queue activation) |
 | **Oversell detected** (should be impossible) | Two orders for same seat | Post-order audit: `SELECT seat_id, COUNT(*) FROM order_seats WHERE status='CONFIRMED' GROUP BY seat_id HAVING COUNT(*) > 1` | Immediately cancel the later order + auto-refund. Alert P0 to engineering (indicates a Lua script bug or Redis state corruption). | < 5min (automatic) |
-| **Seat map CDN showing stale availability** | Users click "Reserve" on sold-out seats | Metric: `hold.unavailable_rate` > 30% | Reduce CDN TTL from 3s to 1s during surge. Or: push model where Redis pub/sub updates edge workers in real-time (higher complexity). | Config change |
+| **Seat map CDN showing stale availability** | Users click "Reserve" on sold-out seats | Metric: `hold.unavailable_rate` > 30% | Regenerate snapshots every 1s during surge and show section-level scarcity warnings. Checkout/hold path remains authoritative. | Config change |
 | **Bot scalping** | Bots hold seats to resell at markup | Rate limiting per IP/user + CAPTCHA + device fingerprinting | Block IPs exceeding 10 hold attempts/minute. Require CAPTCHA for flagged sessions. Implement purchase limits (max 4 tickets per user per event). | By design |
 | **Adjacent seat algorithm returns suboptimal seats** | User gets seats in different rows | Metric: `adjacent_seat.failure_rate` | Expose "best available" option that scans all sections. Allow user to reject and request new allocation. Progressively relax adjacency constraint (same section > same row > nearby rows). | By design |
 
@@ -418,7 +424,7 @@ public void reconcileAmbiguousPayments() {
   [span: hold.reserve_seats]              ← 2ms
     [span: redis.lua.check_available]     ← 0.5ms
     [span: redis.lua.set_held]            ← 0.5ms
-    [span: delay_queue.schedule_expiry]   ← 1ms (tag: ttl=600s)
+    [span: redis.zadd_hold_expiry]        ← 1ms (tag: ttl=600s)
   
 [traceId: tix-abc123]  (user completes checkout)
   [span: order.checkout]                  ← 3s total
