@@ -1,103 +1,94 @@
 # System Design Cheat Sheet
 
-## 0. First 2 Minutes: Clarify The Problem
+## 0. First 2 Minutes
 
 Ask:
 
-* Who are the users?
-* What is the core workflow?
-* What is the write path?
-* What is the read path?
-* What is the strongest correctness requirement?
-* What can be eventually consistent?
-* What is the target scale?
-* Is this global or single-region?
-* Is money/customer data involved?
+* users?
+* core workflow?
+* read path vs write path?
+* strongest correctness requirement?
+* what can be eventual?
+* target scale?
+* global or single-region?
+* money/customer data?
 
 Phrase:
 
 ```text
-Before designing components, I want to separate correctness-critical paths from read/analytics paths.
+I want to separate correctness-critical paths from read/analytics paths first.
 ```
 
 ---
 
-## 1. Requirements Checklist
+## 1. Requirements
 
-### Functional
+Functional:
 
-Ask:
+* create/update/delete?
+* query/search?
+* sync vs async?
+* admin/internal users?
+* external integrations?
 
-* What can users create/update/delete?
-* What must be queried?
-* What workflows are synchronous?
-* What workflows can be async?
-* Are there admin/internal users?
-* Are there external integrations?
+Non-functional:
 
-### Non-Functional
-
-Bring up:
-
-* RPS / TPS
-* latency target
-* availability target
-* consistency requirement
-* durability requirement
-* data retention
+* RPS/TPS
+* latency P95/P99
+* availability
+* consistency
+* durability
+* retention
 * privacy/security
 * auditability
-* recovery time objective
+* RTO/RPO
 
 ---
 
-## 2. Scale Numbers To Ask For
+## 2. Scale
 
 Ask:
 
-* Registered users?
-* Daily active users?
-* Peak concurrent users?
-* Reads per user per day?
-* Writes per user per day?
-* Peak-to-average multiplier?
-* Payload size?
-* Retention period?
-* Regions?
+* registered users
+* DAU/MAU
+* peak concurrent users
+* reads/user/day
+* writes/user/day
+* peak multiplier
+* payload size
+* retention
+* regions
 
-Quick formulas:
+Formulas:
 
 ```text
 avg RPS = daily requests / 86,400
 peak RPS = avg RPS × peak multiplier
 daily storage = writes/day × object size
 monthly storage = daily storage × 30
-bandwidth/sec = RPS × payload size
+bandwidth = RPS × payload size
 ```
 
-Common assumptions:
+Assumptions:
 
 ```text
-DAU = 10-30% of registered users
+DAU = 10-30% registered users
 peak = 3-10× average
 small JSON = 1-10 KB
-large enriched object = 10-100 KB
+enriched object = 10-100 KB
 ```
 
 ---
 
-## 3. Component Diagram Must Include
+## 3. Component Diagram
 
-Do not draw boxes only. Add estimates.
-
-For each component:
+Every box:
 
 * CPU
 * RAM
 * disk/storage
 * RPS/TPS
-* latency budget
-* ownership/source of truth
+* source of truth or projection
 
 Example:
 
@@ -108,25 +99,16 @@ Example:
   stateless
 ```
 
-For databases:
-
-```text
-[ PostgreSQL Primary ]
-  16-64 vCPU / 64-256 GB RAM
-  1-4 TB NVMe/io2/gp3
-  source of truth
-```
-
 ---
 
-## 4. Sequence Diagram Must Include
+## 4. Sequence Diagram
 
-Every arrow should have:
+Every arrow:
 
-* RPS or TPS
+* RPS/TPS
 * latency
-* sync vs async
-* retry behavior if relevant
+* sync/async
+* retry behavior
 
 Example:
 
@@ -140,42 +122,40 @@ Outbox -> Kafka/SQS        at-least-once
 
 ---
 
-## 5. Correctness Topics To Bring Up
+## 5. Correctness
 
-Always consider:
+Bring up:
 
 * idempotency
-* deduplication
 * retries
+* deduplication
+* race conditions
 * partial failure
 * ordering
-* race conditions
 * locking
-* optimistic concurrency
 * source of truth
 * reconciliation
-* exactly-once claims
 
-Good phrase:
+Phrase:
 
 ```text
-I would avoid claiming exactly-once across distributed systems. I would use at-least-once delivery plus idempotent writes and reconciliation.
+At-least-once delivery, idempotent writes, explicit reconciliation.
 ```
 
 ---
 
-## 6. Idempotency Checklist
+## 6. Idempotency
 
 Ask:
 
-* Can clients retry?
-* What if client times out after success?
-* What is the idempotency key?
-* Where is the result stored?
-* How long is the key retained?
-* What if same key has different payload?
+* can clients retry?
+* timeout after success?
+* idempotency key?
+* request hash?
+* stored response?
+* TTL?
 
-Design:
+Record:
 
 ```text
 idempotency_key
@@ -186,180 +166,121 @@ created_at
 expires_at
 ```
 
-Pattern:
-
-```text
-check existing key
-if same request -> return stored result
-if different request -> reject
-else process and store result atomically
-```
-
 ---
 
-## 7. Hashing / Partitioning Checklist
+## 7. Hashing / Partitioning
 
 Ask:
 
-* What is the partition key?
-* Does one entity need single-owner ordering?
-* Are there hot keys?
-* What happens when shards are added?
-* Are cross-shard operations needed?
+* partition key?
+* hot keys?
+* single-owner ordering?
+* cross-shard operations?
+* adding/removing shards?
 
 Options:
 
-```text
-hash(key) % N
-consistent hashing
-range partitioning
-tenant partitioning
-time partitioning
-Kafka partition key
-Redis hash slot
-```
+* `hash(key) % N`
+* consistent hashing
+* range partitioning
+* tenant partitioning
+* time partitioning
+* Kafka partition key
+* Redis hash slot
 
-Use consistent hashing when:
+Phrase:
 
 ```text
-nodes/shards may be added or removed
-you want limited key movement
-one key should have one owner
-```
-
-Warning:
-
-```text
-Partitioning improves throughput for many keys.
-It does not solve one hot key unless you split the key's workload.
+Partitioning helps many keys. It does not solve one hot key unless we split that key's workload.
 ```
 
 ---
 
-## 8. Caching Checklist
+## 8. Cache
 
 Ask:
 
-* What is cached?
-* Is cache source of truth?
+* source of truth or projection?
 * TTL?
-* Invalidation?
-* What happens if cache is stale?
-* What happens if cache is lost?
+* invalidation?
+* stale behavior?
+* rebuild path?
 
-Phrases:
+Phrase:
 
 ```text
-Cache is a projection, not the source of truth.
 Stale cache should degrade UX, not corrupt business state.
 ```
 
-Patterns:
-
-* cache-aside
-* write-through
-* write-behind
-* CDC projection
-* materialized view
-
 ---
 
-## 9. Queue / Stream Checklist
-
-Ask:
-
-* Is this job dispatch or event streaming?
-* Does a slow message block others?
-* Need replay?
-* Need multiple consumers?
-* Need DLQ?
-* Need ordering?
-* How are retries handled?
+## 9. Queue vs Stream
 
 SQS fits:
 
-* background jobs
-* long-running work
+* long-running jobs
 * visibility timeout
 * DLQ
 * autoscale by queue depth
 
 Kafka fits:
 
-* event streaming
+* event log
 * replay
 * multiple consumer groups
-* ordered log per partition
-* analytics/event backbone
+* ordered partition stream
 
 Phrase:
 
 ```text
-Kafka is an event log. SQS is a job queue. I would choose based on whether the workload is replayable events or work dispatch.
+Kafka is an event log. SQS is a job queue.
 ```
 
 ---
 
-## 10. Database Checklist
+## 10. Database
 
 Ask:
 
 * SQL or NoSQL?
-* Transaction boundaries?
-* Isolation level?
-* Indexes?
-* Partitioning?
-* Read replicas?
-* Retention/archive?
-* Migration/backfill?
+* transaction boundary?
+* isolation?
+* indexes?
+* partitioning?
+* read replicas?
+* archive/retention?
 
-SQL fits:
+SQL:
 
 * transactions
 * constraints
-* relational queries
 * money/accounting
 
-NoSQL fits:
+NoSQL:
 
 * document state
-* flexible schema
-* large-scale key-value access
-* denormalized read models
+* key-value access
+* denormalized reads
 
-Bring up:
+Remember:
 
-```text
-unique constraints
-foreign keys
-check constraints
-row-level locks
-optimistic version column
-outbox table
-```
+* unique constraints
+* row locks
+* version column
+* outbox table
 
 ---
 
-## 11. Locking / Concurrency Checklist
-
-Ask:
-
-* Can two users update same entity?
-* What is the conflict behavior?
-* Do we need ordering?
-* Is contention high?
+## 11. Locking
 
 Options:
 
-```text
-optimistic locking: version column
-pessimistic locking: SELECT FOR UPDATE
-distributed lock: use carefully
-single-owner partition
-actor model / queue per key
-```
+* optimistic: version column
+* pessimistic: `SELECT FOR UPDATE`
+* single-owner partition
+* queue per key
 
-Deadlock prevention:
+Rule:
 
 ```text
 If locking multiple rows, lock in sorted ID order.
@@ -367,133 +288,206 @@ If locking multiple rows, lock in sorted ID order.
 
 ---
 
-## 12. Latency Budget
+## 12. Latency
 
-Break down:
-
-```text
-client -> gateway
-gateway -> service
-service -> cache
-service -> DB
-service -> external API
-async publish
-response
-```
-
-Typical rough numbers:
+Rough numbers:
 
 ```text
-same-region Redis: <1-2ms
-same-region DB query: 5-30ms
-external payment API: 100ms-2s
+Redis same-region: <1-2ms
+DB query: 5-30ms
 Kafka produce: 1-10ms
 SQS publish: 10-50ms
 HTTP service call: 5-50ms
-```
-
-Question:
-
-```text
-What is P50/P95/P99 target?
+external payment API: 100ms-2s
 ```
 
 ---
 
-## 13. Availability / Failure Checklist
+## 13. Failure / Recovery
 
 Ask:
 
-* What fails?
-* What is user impact?
-* Can we retry?
-* Can we rebuild?
-* What data is lost?
-* What is RTO/RPO?
+* what fails?
+* user impact?
+* retry?
+* rebuild?
+* data loss?
+* RTO/RPO?
 
-Failure modes:
+Common:
 
 * DB down
-* cache down
+* cache lost
 * queue down
 * worker crash
 * external API timeout
 * duplicate event
-* delayed event
 * partial commit
 * region failure
 
 Phrase:
 
 ```text
-I want to explicitly handle the failure window between each side effect.
+Handle the failure window between each side effect.
 ```
 
 ---
 
-## 14. Reconciliation Checklist
+## 14. Reconciliation
 
-Bring up when:
+Use for:
 
-* external systems are involved
-* payments are involved
-* email/webhooks are involved
-* cache projections exist
-* async workers exist
-
-Ask:
-
-* What states can get stuck?
-* What job detects them?
-* How often does it run?
-* What is safe to retry?
-* What is the source of truth?
+* payments
+* webhooks
+* email
+* external APIs
+* async workers
+* cache projections
 
 Examples:
 
-```text
-PAYMENT_PENDING too long
-SENDING email too long
-outbox unpublished rows
-cache lag
-worker lease expired
-```
+* `PAYMENT_PENDING` too long
+* unpublished outbox rows
+* cache lag
+* expired worker lease
+* stuck `SENDING`
 
 ---
 
-## 15. Security / Privacy Checklist
+## 15. S3
+
+Use for:
+
+* large files
+* reports
+* raw immutable data
+* archives
+* data lake
 
 Ask:
 
-* Authentication?
-* Authorization?
-* Tenant isolation?
-* PII?
-* Encryption?
-* Audit logs?
-* Secrets?
-* Rate limiting?
+* object size?
+* presigned URLs?
+* multipart?
+* lifecycle?
+* encryption?
+* bucket/key isolation?
+* read/write rate?
 
-Patterns:
+Multipart:
 
 ```text
-JWT / OAuth
-RBAC / ABAC
-tenant_id on every row
-S3 presigned URLs
-KMS encryption
-audit log
-principle of least privilege
+S3 limit = 10,000 parts
+100 MB part -> 200 GB file = 2,000 parts
+```
+
+Upload timing:
+
+```text
+100 MB = 800 megabits
+100 Mbps = 12.5 MB/sec
+100 MB / 12.5 MB/sec = 8 sec
+```
+
+Pattern:
+
+```text
+client -> S3 directly
+API signs URLs only
+worker streams from S3
+DB stores metadata/status
+```
+
+Phrase:
+
+```text
+The app server should not proxy large file bytes.
 ```
 
 ---
 
-## 16. Observability Checklist
+## 16. Parquet
+
+Use for:
+
+* analytics
+* reconciliation batches
+* data lake
+* Spark/Athena/Trino
+
+Why:
+
+* columnar
+* compressed
+* schema
+* predicate pushdown
+
+Ask:
+
+* partition columns?
+* file size?
+* small files problem?
+* schema evolution?
+* compaction?
+
+Good size:
+
+```text
+128 MB-1 GB per Parquet file
+```
+
+Partition examples:
+
+```text
+dt=2026-09-13/
+tenant_id=abc/
+region=sg/
+```
+
+Phrase:
+
+```text
+Parquet is for analytical scans, not low-latency row-by-row OLTP.
+```
+
+Warning:
+
+```text
+Do not write tiny Parquet files per event. Buffer/batch and compact.
+```
+
+---
+
+## 17. Security
+
+Ask:
+
+* authentication?
+* authorization?
+* tenant isolation?
+* PII?
+* encryption?
+* audit logs?
+* secrets?
+* rate limits?
+
+Patterns:
+
+* JWT/OAuth/API key
+* RBAC/ABAC
+* tenant_id on rows
+* presigned URLs
+* KMS
+* audit log
+
+---
+
+## 18. Observability
 
 Metrics:
 
 * RPS/TPS
-* latency P50/P95/P99
+* P95/P99
 * error rate
 * queue depth
 * oldest message age
@@ -501,13 +495,6 @@ Metrics:
 * DLQ count
 * cache hit rate
 * stuck state count
-
-Tracing:
-
-* trace ID from gateway
-* propagate through HTTP/gRPC
-* propagate through Kafka/SQS headers
-* tag tenant/account/entity IDs carefully
 
 Phrase:
 
@@ -517,84 +504,9 @@ Observability should answer: where is this customer's workflow stuck?
 
 ---
 
-## 17. API Design Checklist
+## 19. Financial Systems
 
-Ask:
-
-* REST/gRPC?
-* Pagination?
-* Filtering?
-* Idempotency key?
-* Error model?
-* Webhooks?
-* Versioning?
-
-Good API features:
-
-```text
-stable IDs
-request_id
-idempotency_key
-created_at / updated_at
-status enum
-next_page_token
-webhook event_id
-```
-
----
-
-## 18. Storage / Data Size Checklist
-
-Calculate:
-
-```text
-rows/day = writes/sec × 86,400
-storage/day = rows/day × row_size
-index overhead = 1-3× data size
-replication = multiply by replica count
-retention = daily storage × days
-```
-
-Remember:
-
-```text
-WAL/binlog adds overhead.
-Indexes add overhead.
-Backups add overhead.
-```
-
----
-
-## 19. Hot Key Checklist
-
-Ask:
-
-* Can one event/account/user dominate traffic?
-* Does hashing help?
-* Can the hot entity be split?
-* What correctness is lost if split?
-
-Examples:
-
-```text
-one ticket event
-one celebrity livestream
-one merchant account
-one Redis key
-one Kafka partition
-```
-
-Phrase:
-
-```text
-Adding more app nodes does not fix a single hot shard.
-```
-
----
-
-## 20. Financial Systems Checklist
-
-Always mention:
+Mention:
 
 * idempotency
 * audit trail
@@ -602,66 +514,104 @@ Always mention:
 * reconciliation
 * no double-spend
 * source of truth
-* external timeout ambiguity
+* timeout ambiguity
 * duplicate webhook handling
 
 Phrase:
 
 ```text
-For money movement, I would rather fail closed than create ambiguous financial state.
+For money movement, fail closed rather than create ambiguous financial state.
 ```
 
 ---
 
-## 21. Final Answer Structure
+## 20. API Design
 
-When presenting:
+Ask:
+
+* REST/gRPC?
+* pagination?
+* filtering?
+* idempotency key?
+* error model?
+* webhooks?
+* versioning?
+
+Good fields:
+
+```text
+id
+request_id
+idempotency_key
+status
+created_at
+updated_at
+next_page_token
+```
+
+---
+
+## 21. Storage Math
+
+```text
+rows/day = writes/sec × 86,400
+storage/day = rows/day × row_size
+monthly = daily × 30
+index overhead = 1-3×
+replicas multiply storage
+```
+
+Remember:
+
+* indexes
+* WAL/binlog
+* backups
+* replication
+* retention
+
+---
+
+## 22. Trigger Words
+
+| Keyword | Think |
+| :--- | :--- |
+| payment | idempotency, timeout, reconciliation |
+| upload | multipart, S3, presigned URL, workers |
+| ticketing | hot key, waiting room, atomic hold |
+| ledger | double-entry, row locks, audit |
+| webhook | HMAC, event_id, retries |
+| search | index, eventual consistency |
+| analytics | Parquet, S3, batch, compaction |
+| real-time | WebSocket/SSE, backpressure |
+| cache | stale reads, invalidation, rebuild |
+| global | replication lag, data residency |
+
+---
+
+## 23. Final Flow
 
 ```text
 1. Requirements
-2. Scale estimates
-3. API sketch
+2. Scale
+3. API
 4. Data model
-5. High-level architecture
-6. Write path sequence
-7. Read path sequence
-8. Correctness/idempotency
-9. Failure/recovery
-10. Observability
-11. Tradeoffs and future improvements
+5. Component diagram with estimates
+6. Sequence diagram with RPS/latency
+7. Correctness/idempotency
+8. Failure/recovery
+9. Observability
+10. Tradeoffs
 ```
 
 ---
 
-## 22. Quick Trigger Words
+## 24. Do Not Forget
 
-If problem mentions:
-
-| Keyword | Immediately Think |
-| :--- | :--- |
-| payment | idempotency, timeout ambiguity, reconciliation |
-| upload | multipart, presigned URL, async workers, virus scan |
-| ticketing | hot key, waiting room, atomic holds, expiry |
-| chat/feed | fanout, ordering, pagination, read model |
-| ledger | double-entry, row locks, immutable postings |
-| notification | at-least-once, user preferences, dedup |
-| webhook | retries, signature, event_id idempotency |
-| search | indexing, eventual consistency |
-| analytics | batch vs stream, data lake, aggregation |
-| real-time | WebSocket/SSE, backpressure, connection state |
-| cache | invalidation, stale reads, rebuild |
-| global | region routing, replication lag, data residency |
-
----
-
-## 23. Do Not Forget
-
-* Put estimates in component diagram.
-* Put RPS and latency in sequence diagram.
-* State what is source of truth.
-* Say what happens on retry.
-* Say what happens if worker crashes.
-* Say how stuck states are repaired.
-* Say what is eventually consistent.
-* Say what must be strongly consistent.
-* Do not overclaim exactly-once.
+* estimates in component diagram
+* RPS/latency in sequence diagram
+* source of truth
+* retry behavior
+* worker crash behavior
+* stuck-state repair
+* strong vs eventual consistency
+* avoid overclaiming exactly-once
