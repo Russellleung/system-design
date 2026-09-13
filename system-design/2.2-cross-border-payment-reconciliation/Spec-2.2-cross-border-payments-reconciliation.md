@@ -430,17 +430,19 @@ After shuffle:
 
 This means no worker needs to read every S3 file to collect its own hashes. Workers read different physical file chunks, then Spark redistributes rows between workers so matching keys become co-located.
 
-Before matching, detect duplicates:
+Before matching, validate that UETR is unique on both sides:
 
 ```text
 if count(internal rows for UETR) > 1
-    -> duplicate/ambiguous internal reference
+    -> classify all records for that UETR as DUPLICATE_INTERNAL_UETR
+    -> exclude them from exact and fuzzy auto-match
 
 if count(external rows for UETR) > 1
-    -> duplicate/ambiguous external reference
+    -> classify all records for that UETR as DUPLICATE_EXTERNAL_UETR
+    -> exclude them from exact and fuzzy auto-match
 ```
 
-A duplicate UETR must never be silently overwritten by a Java `HashMap<String, InternalLedgerEntry>`.
+UETR is expected to identify one payment instruction. If it appears more than once in either the internal or external dataset, the match is ambiguous and should go to operations review rather than risk a false positive. A duplicate UETR must never be silently overwritten by a Java `HashMap<String, InternalLedgerEntry>`.
 
 ### Phase 2: Fuzzy Candidate Generation
 
@@ -524,10 +526,33 @@ public record InternalLedgerEntry(
 ### Exact Matching Pseudocode
 
 ```java
-Map<String, List<InternalLedgerEntry>> byUetr = groupInternalByUetr(internalEntries);
+Map<String, List<InternalLedgerEntry>> internalByUetr =
+        groupInternalByUetr(internalEntries);
+Map<String, List<CanonicalStatementRecord>> externalByUetr =
+        groupExternalByUetr(externalRecords);
+
+Set<String> duplicateUetrs = new HashSet<>();
+
+for (Map.Entry<String, List<InternalLedgerEntry>> entry : internalByUetr.entrySet()) {
+    if (entry.getValue().size() > 1) {
+        duplicateUetrs.add(entry.getKey());
+        breakRecord(entry.getKey(), entry.getValue(), "DUPLICATE_INTERNAL_UETR");
+    }
+}
+
+for (Map.Entry<String, List<CanonicalStatementRecord>> entry : externalByUetr.entrySet()) {
+    if (entry.getValue().size() > 1) {
+        duplicateUetrs.add(entry.getKey());
+        breakRecord(entry.getKey(), entry.getValue(), "DUPLICATE_EXTERNAL_UETR");
+    }
+}
 
 for (CanonicalStatementRecord bank : externalRecords) {
-    List<InternalLedgerEntry> candidates = byUetr.getOrDefault(
+    if (duplicateUetrs.contains(bank.uetr())) {
+        continue;
+    }
+
+    List<InternalLedgerEntry> candidates = internalByUetr.getOrDefault(
         bank.uetr(), List.of());
 
     if (candidates.size() == 1) {
@@ -540,7 +565,7 @@ for (CanonicalStatementRecord bank : externalRecords) {
             mismatch(bank, internal, "Amount or currency discrepancy");
         }
     } else if (candidates.size() > 1) {
-        ambiguous(bank, "Duplicate UETR");
+        ambiguous(bank, "Unexpected duplicate UETR after pre-check");
     } else {
         deferToFuzzyPass(bank);
     }
