@@ -66,17 +66,112 @@ Design a service where authenticated users upload potentially large files (up to
 
 ```text
 [ Authenticated Client ]
-         |   ^
-1. POST  |   | 2. Presigned URLs
-         v   |
-[ Upload API ] ---- 6. outbox row ----> [ Outbox Publisher ] ---> [ SQS Queue ]
-         |   ^                                     |
-4. POST  |   | 5. Complete                         | 7. Poll
-         v   |                                     v
-[ AWS S3 Bucket ] <------- 8. Stream ------- [ Scan / Analysis Workers ]
-(Raw Uploads)                                      | 9. Write temp/final report
-                                                   v
-                                          [ S3 Reports Bucket ]
+  1,000 concurrent uploads
+       |
+       +-- metadata: initiate/status/complete -->
+       |   [ Upload Control Plane API ]
+       |     3 pods across AZs
+       |     4 vCPU / 16 GB RAM each
+       |     no local disk; stateless
+       |          |
+       |          +-- upload metadata, leases, dedup rows, outbox -->
+       |              [ PostgreSQL Metadata DB ]
+       |                db.r6g.xlarge class
+       |                4 vCPU / 32 GB RAM
+       |                disk: 200 GB-1 TB gp3/io2
+       |                     |
+       |                     | outbox poll: ~100-500 msgs/sec capacity
+       |                     v
+       |              [ Outbox Publisher ]
+       |                2-3 pods, 2 vCPU / 4 GB RAM each
+       |                     |
+       |                     v
+       |              [ SQS Scan / Analysis Queues + DLQ ]
+       |                managed, durable at-least-once delivery
+       |                     |
+       |                     v
+       |              [ Scan / Analysis Workers ]
+       |                base: 5 instances, max: 50
+       |                8 vCPU / 16 GB RAM each
+       |                temp disk: 100-500 GB only if analysis needs spill
+       |                     |
+       |                     +-- status updates / final report metadata --> [ PostgreSQL ]
+       |
+       +-- file bytes: multipart PUT directly to S3 -->
+           [ S3 Raw Uploads Bucket ]
+             ~300 TB/month hot data
+             lifecycle: abort incomplete multipart after 7 days
+                ^
+                |
+                | stream read; no full-file memory load
+                |
+           [ Scan / Analysis Workers ]
+                |
+                | write temp/final report objects
+                v
+           [ S3 Reports Bucket ]
+             ~1.5 TB/month report growth
+             durable report objects, presigned GET on demand
+```
+
+### Component Estimates
+
+| Component | RPS / Throughput | CPU / RAM | Disk / Storage | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| Upload Control Plane API | ~100-500 metadata RPS peak; 1,000 concurrent uploads | 3 × 4 vCPU / 16 GB | Stateless | Signs URLs, records metadata, completes uploads. Does not proxy file bytes. |
+| PostgreSQL Metadata DB | ~100-500 writes/sec capacity | 4 vCPU / 32 GB | 200 GB-1 TB gp3/io2 | Upload rows, leases, dedup index, outbox, report status. |
+| Outbox Publisher | ~100-500 events/sec | 2-3 × 2 vCPU / 4 GB | Stateless | Publishes scan/analysis jobs to SQS after DB commit. |
+| SQS Queues | Worker backlog buffer | Managed | Managed | At-least-once delivery; DLQ after retry exhaustion. |
+| Scan / Analysis Workers | ~25 concurrent jobs base, ~250 max | 5-50 × 8 vCPU / 16 GB | Optional 100-500 GB temp disk | Streams files from S3; scales from queue depth. |
+| S3 Raw Uploads | ~10 TB/day ingress | Managed | ~300 TB/month hot | Source file storage, lifecycle to Glacier. |
+| S3 Reports | ~20K reports/day | Managed | ~1.5 TB/month | Final reports only visible after DB completion. |
+
+### Sequence Rates & Latency
+
+Upload control path:
+
+```text
+Client             Upload API          PostgreSQL          S3
+  |                    |                    |               |
+  |-- 1. initiate ---->|                    |               | ~50-200 RPS peak, ~30-80ms
+  |                    |-- insert metadata ->|              | ~5-15ms
+  |                    |-- create multipart upload ---------->| ~50-150ms
+  |                    |<-- presigned URLs --|               | first 100 parts
+  |<-- 201 uploadId ---|                    |               | total ~100-300ms
+  |                    |                    |               |
+  |-- 2. PUT parts directly to S3 -------------------------->| up to 1,000 concurrent uploads
+  |                    |                    |               | latency depends on file size/network
+  |                    |                    |               |
+  |-- 3. complete ---->|                    |               | ~20-100 RPS peak, ~100-500ms
+  |                    |-- complete multipart --------------->| ~100-300ms
+  |                    |-- status + outbox -->|              | ~5-20ms
+  |<-- 200 completed --|                    |               | scan job durably queued
+```
+
+Analysis path:
+
+```text
+Outbox Publisher        SQS Queue          Worker             S3              PostgreSQL
+      |                    |                 |                 |                    |
+      |-- publish job ---->|                 |                 |                    | ~20K/day avg; burst ~100-500/sec
+      |                    |-- poll msg ---->|                 |                    | worker poll ~0-20s typical
+      |                    |                 |-- acquire lease ---------------------->| ~5-20ms
+      |                    |                 |-- stream raw file -->|                 | minutes; size-dependent
+      |                    |                 |-- write temp report ->|                | ~100ms-seconds
+      |                    |                 |-- mark completed --------------------->| ~5-20ms
+      |                    |<-- delete msg --|                 |                    | after DB completion
+```
+
+Report retrieval path:
+
+```text
+Client             Upload API          PostgreSQL          S3 Reports
+  |                    |                    |                  |
+  |-- GET report ------>|                    |                  | ~100-1,000 RPS read bursts
+  |                    |-- check ownership ->|                 | ~2-10ms
+  |                    |-- presign GET ------------------------>| ~10-50ms
+  |<-- report URL ------|                    |                  | total ~30-100ms
+  |-- download directly from S3 ------------------------------>| file-size dependent
 ```
 
 ### Why Direct-to-S3 Upload (Not Proxied Through App Server)?
@@ -90,6 +185,64 @@ Design a service where authenticated users upload potentially large files (up to
 ### Why Presigned URLs and Not IAM Credentials?
 
 Giving clients temporary IAM credentials (via STS) allows them to upload but also exposes S3 API surface (ListBucket, DeleteObject). Presigned URLs are scoped to a single multipart `UploadPart` operation on a specific key and upload ID with a short TTL. Minimal privilege, maximum isolation.
+
+### Why SQS for Scan / Analysis Jobs Instead of Kafka?
+
+Kafka can be used in this design, but the scan/analysis workload is closer to job dispatch than event streaming.
+
+```text
+Upload completed
+    -> scan this file
+    -> analyze this file
+    -> retry if worker dies
+    -> send to DLQ after too many failures
+```
+
+SQS fits this path because it provides:
+
+* visibility timeout and redelivery if a worker crashes
+* DLQ after retry exhaustion
+* simple worker polling
+* autoscaling from queue depth / oldest message age
+* no partition planning for long-running jobs
+
+Long file analysis jobs may run for seconds, minutes, or tens of minutes. With SQS, the worker can extend message visibility while it holds the database lease.
+
+SQS visibility is automatic:
+
+```text
+1. Worker receives message M
+2. SQS hides M from other workers for the visibility timeout
+3. If worker succeeds, it calls DeleteMessage(M)
+4. If worker crashes, the visibility timeout expires and SQS shows M again
+```
+
+For long-running jobs, the worker periodically calls `ChangeMessageVisibility`:
+
+```text
+ChangeMessageVisibility(M, +5 minutes)
+```
+
+This means:
+
+```text
+I am still alive and still processing this message. Do not redeliver it yet.
+```
+
+SQS has no Kafka-style offset commit. A slow message is hidden independently and does not block other workers from receiving other messages.
+
+Kafka is better when multiple downstream systems need the same immutable upload event, replay/history is important, or the company already uses Kafka as its standard event backbone. Kafka is less natural as the direct worker queue for long-running analysis because a slow message can block progress on that partition unless the consumer immediately hands the job off elsewhere.
+
+The common hybrid is:
+
+```text
+PostgreSQL outbox
+    -> Kafka upload.completed event
+    -> Kafka consumer creates SQS/job-table task
+    -> workers process SQS/job-table tasks
+```
+
+For this spec, SQS is the direct job queue because the requirement is reliable background work execution, retry, and DLQ handling rather than multi-consumer event replay.
 
 ---
 
@@ -268,6 +421,27 @@ S3 multipart upload is inherently resumable:
 | 100 MB | 2,000 | Good balance: each part uploads in ~8s on a 100 Mbps connection. Failure wastes at most 8s of work. |
 | 1 GB | 200 | Fewer parts, but each takes 80s. A failure wastes 80s. Not ideal for mobile/unreliable connections. |
 
+The 100 MB / 8 second estimate assumes `100 Mbps`, which is megabits per second, not megabytes per second:
+
+```text
+100 MB = 800 megabits
+100 Mbps = 100 megabits/sec
+800 megabits / 100 megabits/sec = 8 seconds
+```
+
+Equivalently:
+
+```text
+100 Mbps = 12.5 MB/sec
+100 MB / 12.5 MB/sec = 8 seconds
+```
+
+If the client has a `100 MB/sec` connection, then the same part takes about:
+
+```text
+100 MB / 100 MB/sec = 1 second
+```
+
 ---
 
 ## 7. Duplicate Analysis Prevention
@@ -393,7 +567,71 @@ public class AnalysisWorker {
 | Spot instances | 80% spot + 20% on-demand | 60–70% cost savings; SQS retry handles spot termination |
 | Visibility timeout | 5 minutes, extended by heartbeat | Large files can exceed 30 minutes. Workers extend SQS visibility and DB lease while processing. |
 
+Workers scale with completed-file analysis workload, not directly with upload bandwidth. S3 and SQS buffer the system:
+
+```text
+Client upload rate -> S3 raw bucket
+Completed uploads  -> SQS jobs
+Workers            -> drain SQS jobs
+```
+
+Sizing formula:
+
+```text
+required concurrent analyses = file arrival rate × average processing time
+required worker instances    = required concurrent analyses / concurrency per worker
+```
+
+Example using the traffic model:
+
+```text
+20,000 uploads/day
+= 20,000 / 86,400
+≈ 0.23 completed files/sec average
+```
+
+If each analysis takes 10 minutes:
+
+```text
+0.23 files/sec × 600 sec
+≈ 138 concurrent analyses
+```
+
+With 5 concurrent analyses per worker instance:
+
+```text
+138 / 5
+≈ 28 worker instances
+```
+
+The base fleet can be lower because traffic is not evenly distributed and dedup/skipped analyses reduce work. The autoscaler watches SQS queue depth and oldest message age; if the queue grows, add workers, and if it drains, scale down.
+
 ### Lease Mechanism (Preventing Duplicate Processing)
+
+There are two layers of leasing:
+
+```text
+SQS visibility timeout = queue-level temporary hide
+DB lease               = durable job ownership guard
+```
+
+They solve different problems.
+
+SQS visibility prevents most duplicate work while a worker is actively processing:
+
+```text
+ReceiveMessage hides the message.
+DeleteMessage removes it after success.
+If the worker dies, SQS makes it visible again after timeout.
+```
+
+The DB lease is the correctness layer. It decides which worker is allowed to publish the report:
+
+```text
+Only the worker holding the unexpired DB lease can mark analysis completed.
+```
+
+This is needed because SQS is at-least-once. A message can be redelivered, visibility can expire during a long job, or a worker can crash after writing a temp report. The DB lease prevents two workers from publishing two final reports for the same upload.
 
 ```sql
 UPDATE analyses

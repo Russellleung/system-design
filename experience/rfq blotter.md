@@ -100,6 +100,56 @@ If a broker resent a modified email, the system treated it as new operational in
 
 If the listener crashed mid-processing, the email was re-discovered by polling/reconciliation using `Message-ID` and idempotency keys. Reprocessing was safe because writes were idempotency-protected.
 
+### Potential Enhancement: SQS + Worker-Based Email Ingestion
+
+The original listener directly polled the broker inbox and parsed messages. A later enhancement would be to split mailbox discovery from parsing work:
+
+```text
+Email Poller
+    |
+    | discover unread / unprocessed broker message
+    v
+SQS email-ingestion queue
+    |
+    | at-least-once job delivery
+    v
+Email Ingestion Workers
+    |
+    | fetch email by Message-ID, parse rows, idempotent upsert
+    v
+Email State DB + Quote DB
+```
+
+SQS fits this better than Kafka if the problem is background work dispatch rather than event-stream replay. Email parsing is bursty and job-like: there may be no email for an hour, then a short burst of large RFQ emails. SQS gives visibility timeout, retry, worker scaling from queue depth, and DLQ handling without forcing one slow email parse to block a Kafka partition.
+
+The important correctness rule remains the same: SQS is at-least-once, so workers must be idempotent by `Message-ID` / `email_thread_id`. Duplicate SQS delivery should re-fetch the same email and hit the same idempotent upserts, not create duplicate quote rows.
+
+This would improve operational elasticity:
+
+* Poller stays simple and only discovers work.
+* Parsing workers scale out during bursts.
+* Poison emails go to DLQ for manual review.
+* Worker crashes are retried automatically after visibility timeout.
+
+It is an enhancement, not a required baseline. For the observed volume, direct polling plus idempotent DB writes was acceptable and faster to ship.
+
+### Outlook Polling Note
+
+For Outlook/Microsoft Graph polling, the poller should only mark the message processed after durable DB work succeeds:
+
+```text
+poll Outlook inbox
+    -> claim message_id in DB
+    -> parse email
+    -> idempotent upsert email_thread + quote rows
+    -> commit DB
+    -> mark Outlook message processed / move folder / add category
+```
+
+If the DB commit succeeds but the Outlook update fails, the message may be seen again on the next poll. That is acceptable because ingestion is at-least-once and DB writes are idempotent by `Message-ID` / `email_thread_id`.
+
+Outlook state is not the source of truth; it is only a convenience to reduce repeat polling.
+
 ---
 
 ## Trader Execution & Cache Refresh

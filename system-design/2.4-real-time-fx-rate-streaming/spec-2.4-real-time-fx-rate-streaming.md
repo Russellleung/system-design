@@ -9,6 +9,7 @@ Checkout and trading-screen clients request 30-second quote locks from a separat
 
 ### Functional Requirements
 * **Multi-LP Ingestion**: Ingest binary/FIX protocol tick feeds from 5 LPs (Barclays, Citi, EBS, LMAX, Bloomberg).
+  Raw LP ticks arrive over dedicated market-data sessions, usually FIX Market Data, vendor SDKs, or proprietary TCP/binary feeds.
 * **Top-of-Book (TOB) Aggregation**: Aggregate quotes to compute Best Bid / Best Offer (BBO) per currency pair.
 * **Guaranteed Quote Locks**: Issue cryptographically signed `QuoteToken` payloads valid for 30 seconds when a client asks for a locked quote. The token includes pair, side, rate, spread, notional limit, quote ID, issue time, and expiry.
 * **LP Failover & Sanity Checking**: Stale tick detector (no quote for $> 200\text{ ms}$), crossed-market checks, per-pair jump bands, and LP quorum/median checks. Pure $\sigma$-based filtering is not sufficient during real market moves.
@@ -29,7 +30,7 @@ Checkout and trading-screen clients request 30-second quote locks from a separat
 | Currency pairs | 50 | Major + minor pairs (G10 + ASEAN crosses) |
 | Avg ticks per LP per pair per second | 2–10 (calm), 50–100 (volatile) | FX markets are bursty — NFP releases, central bank decisions |
 | Steady-state aggregate tick rate | ~5,000 ticks/sec | 5 LPs × 50 pairs × 20 ticks/pair/sec |
-| Peak aggregate tick rate | **100,000 ticks/sec** | Flash crash, major economic event |
+| Peak aggregate tick rate | **100,000 ticks/sec** | Same 5 LP × 50 pair basket during major market events; not a different 5–20 LP universe |
 | Tick event size | ~120 bytes | LP ID + pair + bid + ask + timestamp + sequence |
 | Peak ingress bandwidth | 100K × 120B = **~12 MB/sec** | Comfortable for 10 Gbps NIC |
 
