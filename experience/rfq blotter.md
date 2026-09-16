@@ -22,44 +22,82 @@ The goal was not a perfect greenfield architecture. The goal was a pragmatic sys
 
 ```text
 Broker Inbox
+    Outlook / shared mailbox
+    bursty input, often idle
     |
     | poll + parse
     v
 Email Listener
+    2 pods active/passive or sharded by mailbox
+    2 vCPU / 4 GB each
+    capacity: ~5-20 emails/min, ~5K quote rows/min burst
     |
     +--> Email State Engine / DB
     |       email_threads table
+    |       Mongo replica set: 1 primary + 2 replicas
+    |       4 vCPU / 16 GB RAM each
+    |       disk: 200-500 GB SSD
+    |       capacity: ~100-300 writes/sec
     |
     +--> Quote State Engine / DB
             quotes table
+            shared store for RFQ blotter + other quote workflows
+            Mongo replica set: 1 primary + 2 replicas
+            16-32 vCPU / 64-128 GB RAM each
+            disk: 2-5 TB SSD/NVMe
+            capacity: ~2K-5K quote-row writes/sec burst
                 |
                 | CDC / internal event stream
                 v
             Cache Publisher
+                4-8 pods, 2-4 vCPU / 4-8 GB
+                capacity: ~2K-5K events/sec
                 |
                 v
             Hazelcast Grid
+                3 nodes, 4 vCPU / 8-16 GB each
+                stores active quote projection, ~100K-500K rows
                 |
                 v
             WebSocket Gateway
+                2-4 pods, 2-4 vCPU / 4-8 GB
+                capacity: ~1K-5K connected traders total
                 |
                 v
             Trader UI
 
 Quote State Engine
+    8-16 pods, 4-8 vCPU / 8-16 GB
+    shared write/API tier for RFQ + other quote workflows
+    capacity: ~1K-5K quote actions/sec burst
     |
     | terminal quote updates via CDC
     v
+Quote Terminal Event Consumers
+    4-8 pods, 2-4 vCPU / 4-8 GB
+    consumes quote terminal-state events
+    capacity: ~2K-5K events/sec
+    |
+    | update thread completion counters / Mongo sets
+    v
 Email State Engine
+    2-3 pods, 2-4 vCPU / 4-8 GB
+    capacity: ~100-500 thread-state updates/sec
     |
     | status = COMPLETED / PENDING_DISPATCH
     v
 Email Dispatch Service
+    2 pods, 2 vCPU / 4 GB
+    capacity: ~10-60 emails/min, provider-limited
     |
     | polling job
     v
 Broker Response Email
+    SMTP / Outlook Graph API
+    throttled + idempotent by dispatch_attempt_id
 ```
+
+Capacity was sized for short bursts, not steady 24/7 throughput. With ~40K quote rows/day and occasional ~2K-row broker emails, the critical path was absorbing bursts quickly, keeping trader UI updates live, and avoiding duplicate/conflicting state transitions. Email send throughput was usually constrained more by mailbox/provider throttling and trader completion time than by application CPU.
 
 ---
 

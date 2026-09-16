@@ -502,13 +502,27 @@ Global cross-tenant dedup is intentionally avoided in the base design. It can re
 
 **Problem**: Duplicate client `POST /complete` calls, retries, or object-storage notifications can otherwise create two downstream jobs for the same file.
 
-**Solution**: The system does NOT use S3 events as the analysis trigger. Only the guarded `POST /complete` transition creates the durable scan outbox row, inside a `@Transactional` block that atomically sets `status = UPLOAD_COMPLETED` with a `WHERE status = UPLOADING` guard. A second call sees `status != UPLOADING` and is a no-op.
+**Solution**: The system does NOT use S3 events as the analysis trigger. Only the guarded `POST /complete` transition creates the durable scan outbox row, inside a `@Transactional` block that atomically sets `status = UPLOAD_COMPLETED` with a `WHERE status IN ('UPLOAD_INITIATED', 'FINALIZING')` guard. A second call sees `status = UPLOAD_COMPLETED` and is a no-op.
 
 ```sql
 UPDATE uploads SET status = 'UPLOAD_COMPLETED'
-WHERE id = ? AND user_id = ? AND status = 'UPLOADING'
+WHERE id = ? AND user_id = ?
+  AND status IN ('UPLOAD_INITIATED', 'FINALIZING')
 RETURNING id;
--- Returns 0 rows on duplicate call → no event published
+-- Returns 0 rows on duplicate call -> no duplicate outbox row
+```
+
+The database owns the application workflow state, but S3 owns the object state. `CompleteMultipartUpload` and the database transaction are not atomic together, so recovery checks S3 before deciding whether to retry or advance the DB state:
+
+```text
+DB = FINALIZING, S3 HeadObject = exists
+    -> complete already succeeded; mark UPLOAD_COMPLETED and insert outbox row
+
+DB = FINALIZING, S3 HeadObject = missing
+    -> complete did not finish; retry CompleteMultipartUpload or ask client to retry
+
+DB = UPLOAD_COMPLETED, outbox row unpublished
+    -> outbox publisher retries; no user action required
 ```
 
 ---
@@ -694,6 +708,10 @@ Users only receive presigned report URLs after the DB row is `ANALYSIS_COMPLETED
 | Failure | Impact | Detection | Recovery | RTO |
 | :--- | :--- | :--- | :--- | :--- |
 | **Client disconnects mid-upload** | Partial multipart upload in S3 | Client tracks uploaded parts | Client resumes: `GET /uploads/{id}/status` returns confirmed parts → re-upload missing parts only | Instant resume |
+| **Browser page refresh during upload** | Browser usually loses the in-memory `File` object, but the server-side multipart upload is still valid | Frontend finds persisted `uploadId`, file name, size, last modified time, and part size in IndexedDB/localStorage | UI asks user to select the same file again, verifies name/size/lastModified or lightweight chunk hash, calls `GET /uploads/{id}/status`, then resumes missing part numbers using fresh presigned URLs for the same `s3UploadId` and object key | User-dependent; upload resumes without re-sending completed parts |
+| **All parts uploaded but client never calls `POST /complete`** | S3 has uploaded multipart parts, but no final object and no analysis job | Upload row remains `UPLOAD_INITIATED`; server can compare expected parts with S3 `ListParts` during status/sweeper checks | Client retry calls `POST /complete`. If the client never returns, sweeper marks the upload `ABANDONED` after expiry; S3 lifecycle aborts incomplete multipart parts after 7 days. Optional product choice: sweeper may auto-complete only if all expected parts and ETags are known and trusted. | Client retry instant; abandoned cleanup automatic |
+| **`CompleteMultipartUpload` succeeds but DB/outbox update fails** | Final S3 object exists, but DB may still show `FINALIZING`/`UPLOAD_INITIATED`; analysis not queued yet | Sweeper finds stale finalizing uploads and calls S3 `HeadObject` | If `HeadObject` finds the object, run the guarded DB transaction to set `UPLOAD_COMPLETED` and insert the outbox row. Operation is idempotent. | < 10min sweeper interval |
+| **DB marks `UPLOAD_COMPLETED` but outbox event not published to SQS** | Upload is complete but scan/analysis is delayed | Outbox row remains unpublished or stale; sweeper checks completed uploads with no scan job | Outbox publisher retries until SQS accepts. Because status update and outbox row are in the same DB transaction, there is no committed `UPLOAD_COMPLETED` state without a durable outbox row. | Usually seconds; < 10min with sweeper |
 | **S3 multipart upload abandoned** | Orphaned parts consuming storage | S3 lifecycle rule: `AbortIncompleteMultipartUpload` after 7 days | Automatic cleanup; no manual intervention | Automatic |
 | **Worker crash mid-analysis** | SQS message re-delivered; temp report may exist in S3 | DB lease heartbeat stops; SQS visibility timeout expires | New worker acquires expired lease and starts fresh. Temp reports are ignored until DB marks a final report as completed. | < 10min typical |
 | **Worker OOM on large file** | Analysis fails | JVM OOM error logged; container restarts | Workers MUST use streaming processing (8 MB buffer), never load full file. If analysis inherently requires random access: use memory-mapped file from EBS-backed temp disk, not heap. | < 5min (restart + re-queue) |
