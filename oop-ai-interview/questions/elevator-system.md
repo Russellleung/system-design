@@ -2,27 +2,34 @@
 
 ## Question
 
-Design an elevator control system.
+Design a deterministic in-memory elevator simulator with multiple elevators.
 
 ## Clarifying Questions
 
 * How many elevators and floors?
-* Passenger destination selected outside or inside elevator?
+* Is the destination selected inside or outside the elevator?
 * Optimize for wait time, throughput, or fairness?
-* Is simulation enough?
-* Emergency/maintenance mode needed?
+* Are emergency and maintenance modes required?
 
-## Core Objects
+Assume inside selection, nearest-elevator assignment, and maintenance mode only.
+
+## Components To Implement
 
 ```text
-Elevator
+Direction, ElevatorState
+Request, Elevator
 ElevatorController
-Request
-FloorButton
-ElevatorButton
 SchedulingStrategy
-Direction
-ElevatorState
+```
+
+## Relationships And Services
+
+```text
+Elevator owns its current floor, direction, state, door state, and stop queue.
+ElevatorController owns the fixed collection of Elevators for this simulation.
+Request contains request data only; it does not control an Elevator.
+SchedulingStrategy selects an elevator but does not mutate or store elevators.
+No repository is needed because this is one in-memory simulation aggregate.
 ```
 
 ## Main Operations
@@ -30,92 +37,60 @@ ElevatorState
 ```text
 requestPickup(floor, direction)
 requestDestination(elevatorId, floor)
-step() / tick()
 assignRequest(request)
+tick()
 ```
+
+`assignRequest(request)` selects the elevator. `tick()` moves each elevator by at most one floor, keeping time deterministic.
 
 ## Invariants
 
 ```text
-Elevator has one current floor.
-Elevator moves one direction at a time.
-Elevator cannot serve requests while out of service.
-Door open/close state must be valid before movement.
+An elevator has one current floor and one movement direction.
+Doors must be closed before movement.
+An out-of-service elevator receives no requests.
+The stop queue contains no duplicate floors.
 ```
 
 ## AI Prompt
 
 ```text
-Create an in-memory elevator simulator in Java.
-Use Elevator, ElevatorController, Request, and SchedulingStrategy.
-Support pickup and destination requests. Keep implementation simple.
+Implement a deterministic in-memory elevator simulator in Java using Direction,
+ElevatorState, Request, Elevator, ElevatorController, and SchedulingStrategy.
+
+Support pickup requests, destination requests, and tick(), where one tick moves
+an elevator at most one floor. Use a deterministic nearest-elevator strategy,
+ignore out-of-service elevators, deduplicate stops, and require doors to be
+closed before movement.
+
+Each Elevator owns its stop queue and movement state. ElevatorController owns the
+fixed elevator collection and delegates selection to SchedulingStrategy. The
+strategy must not mutate or store elevators. Do not introduce repositories for
+this in-memory simulation.
+
+Use no threads, timers, UI classes, frameworks, or hardware integration. Add
+JUnit tests for assignment, movement, arrival, door state, and invalid assignment.
 ```
 
 ## Tests
 
 ```text
-pickup request is assigned to an elevator
-elevator moves toward requested floor
-elevator opens door when reaching target
-out-of-service elevator is not assigned
-multiple requests are served in direction order
+pickup assigned to nearest eligible elevator
+elevator moves one floor per tick toward target
+door opens on arrival and closes before moving again
+out-of-service elevator is skipped
+duplicate requests do not duplicate stops
 ```
 
-## Tradeoffs
+## Tradeoffs And Follow-Ups
 
 ```text
-Nearest elevator is simple but may be unfair.
-SCAN/look algorithm reduces direction switching.
-Destination dispatch is more efficient but more complex.
-Simulation clock makes tests deterministic.
+Nearest elevator is simple but can be unfair and shortsighted.
+LOOK/SCAN reduces direction changes by serving stops along the current path.
+Destination dispatch can group riders but needs destinations before boarding.
+Production adds capacity, hardware events, fail-safe modes, and wait metrics.
 ```
 
 ## Strong Answer
 
-> I would separate elevator state from scheduling policy. The controller accepts requests and delegates assignment to a strategy. That lets me start with nearest-elevator logic and later replace it with SCAN or destination dispatch without changing the elevator domain model.
-
-## 30-Minute Interview Shape
-
-### Build In 30 Minutes
-
-```text
-Direction enum
-ElevatorState enum
-Request
-Elevator
-ElevatorController
-SchedulingStrategy
-NearestElevatorStrategy or LookStrategy
-```
-
-### Hard Part To Emphasize
-
-```text
-Separate elevator movement from request assignment.
-Make time deterministic with tick()/step().
-Do not mix UI buttons with scheduling logic.
-```
-
-### Deeper Edge Cases
-
-```text
-elevator is out of service
-request is in opposite direction
-multiple requests on the same floor
-door must close before movement
-no duplicate stops in elevator queue
-```
-
-### Production Extension
-
-```text
-LOOK/SCAN scheduling instead of nearest only
-capacity limit per elevator
-emergency/maintenance mode
-metrics: average wait time, max wait time
-hardware integration events separated from controller logic
-```
-
-### 30-Minute Closing
-
-> I would implement a deterministic simulator rather than real threads. The controller owns request assignment, each elevator owns movement state, and the scheduling strategy can evolve from nearest-elevator to LOOK without rewriting the domain model.
+> I separated elevator movement from request assignment and used tick() instead of real threads, making each transition testable. The controller delegates selection to a scheduling strategy, so nearest-elevator can later become LOOK without changing the elevator model.

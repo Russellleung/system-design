@@ -2,127 +2,102 @@
 
 ## Question
 
-Design a food delivery ordering system.
+Design the in-memory order lifecycle for a food delivery marketplace.
 
 ## Clarifying Questions
 
-* Marketplace or single restaurant?
-* Delivery assignment in scope?
-* Payment in scope?
-* Can orders be cancelled?
-* Need menu updates?
+* Is this a marketplace or one restaurant?
+* Which order states and cancellation rules are required?
+* Are payment and courier assignment fully in scope?
+* Can menu prices change while an item is in the cart?
 
-## Core Objects
+Assume a marketplace; payment and courier systems are external boundaries.
+
+## Components To Implement
 
 ```text
-Restaurant
-Menu
-MenuItem
-Cart
-Order
-OrderItem
-Customer
-Courier
-Payment
-OrderStateMachine
+Restaurant, MenuItem, Cart
+OrderItem, Order, OrderStatus
+RestaurantRepository, InMemoryRestaurantRepository
+OrderRepository, InMemoryOrderRepository
+OrderStateMachine, OrderService
+```
+
+## Relationships And Services
+
+```text
+Restaurant owns menu information only; it does not hold Order objects.
+Cart owns mutable selections before checkout.
+Order owns immutable OrderItems, restaurantId, customerId, total, and status.
+OrderRepository stores and queries Orders, including by restaurantId.
+RestaurantRepository stores restaurants and current menus.
+OrderService coordinates commands and authorization; it does not own storage.
 ```
 
 ## Main Operations
 
 ```text
 addToCart(item, quantity)
-placeOrder(cart)
+placeOrder(cart) -> Order
 acceptOrder(restaurantId, orderId)
-assignCourier(orderId)
-updateOrderStatus(orderId, status)
-cancelOrder(orderId)
+rejectOrder(restaurantId, orderId)
+cancelOrder(customerId, orderId)
+updateStatus(orderId, nextStatus)
 ```
 
 ## Invariants
 
 ```text
-Order price is calculated from menu snapshot at checkout.
-Cannot modify order after it is placed unless explicitly supported.
-Invalid state transitions are rejected.
-Payment should not be captured twice.
+OrderItem stores the checkout name and price snapshot.
+A placed Order cannot be edited.
+Only the owning restaurant can accept or reject it.
+Only defined state transitions are allowed.
+A terminal Order cannot transition again.
 ```
 
 ## AI Prompt
 
 ```text
-Create a Java in-memory food ordering system.
-Use Order, OrderItem, Restaurant, MenuItem, and OrderStatus.
-Implement placeOrder, acceptOrder, cancelOrder, and status transitions.
-Use tests to verify invalid transitions.
+Implement an in-memory Java ordering model using Restaurant, MenuItem, Cart,
+OrderItem, Order, OrderStatus, OrderStateMachine, OrderRepository,
+InMemoryOrderRepository, RestaurantRepository, InMemoryRestaurantRepository,
+and OrderService.
+
+placeOrder must copy item name and price into immutable OrderItems. Support
+restaurant accept/reject, customer cancellation before preparation, and valid
+transitions through PREPARING, OUT_FOR_DELIVERY, and DELIVERED. Verify restaurant
+ownership.
+
+Restaurant owns menu information only and must not contain a collection of
+orders. Each Order stores restaurantId and customerId. Store and query orders
+through OrderRepository. Store restaurants and menus behind RestaurantRepository.
+OrderService coordinates operations and authorization
+but does not own an order Map or List.
+
+Use plain Java. Model payment and courier assignment only as IDs or statuses.
+Do not add APIs, persistence, or messaging. Add JUnit transition and snapshot tests.
 ```
 
 ## Tests
 
 ```text
-place order from cart
-price uses checkout snapshot
-restaurant accepts pending order
-cannot cancel delivered order
-cannot transition directly from pending to delivered
+place order and calculate total from checkout snapshots
+menu price change does not alter placed order
+owning restaurant accepts pending order
+wrong restaurant cannot accept order
+reject invalid state transition
+reject cancellation after preparation
 ```
 
-## Tradeoffs
+## Tradeoffs And Follow-Ups
 
 ```text
-Snapshot price to avoid menu price changes affecting existing orders.
-State machine protects invalid transitions.
-Payment and delivery can be separate services.
-Use idempotency key for placeOrder in production.
+OrderItem is a snapshot; MenuItem is the current catalog entry.
+An explicit state machine keeps transition rules in one place.
+Production needs idempotent placeOrder, a persisted audit trail, and an outbox.
+Payment and courier workflows remain separate service boundaries.
 ```
 
 ## Strong Answer
 
-> I would center the design around the order state machine. Food ordering has many invalid transitions, so making state transitions explicit is more important than adding many classes early.
-
-## 30-Minute Interview Shape
-
-### Build In 30 Minutes
-
-```text
-Restaurant
-MenuItem
-Cart
-Order
-OrderItem
-OrderStatus
-OrderService
-OrderStateMachine
-```
-
-### Hard Part To Emphasize
-
-```text
-OrderItem is a checkout snapshot of MenuItem.
-Order state transitions must be explicit.
-Payment/delivery can be external boundaries, not fully implemented.
-```
-
-### Deeper Edge Cases
-
-```text
-menu price changes after order placed
-restaurant rejects order
-cancel after restaurant accepts
-invalid status transition
-item becomes unavailable while in cart
-duplicate placeOrder retry
-```
-
-### Production Extension
-
-```text
-idempotency key for placeOrder
-DB transaction for order + payment attempt
-outbox event to restaurant/courier dispatch
-state machine persisted with audit trail
-inventory/menu availability cache
-```
-
-### 30-Minute Closing
-
-> I would implement cart-to-order conversion with immutable OrderItems and a small order state machine. The important production concern is idempotent order placement because retries must not create two paid orders.
+> I centered the design on immutable OrderItem snapshots and an explicit order state machine. Payment and courier dispatch are boundaries, not extra domain models for this exercise. In production, placeOrder needs idempotency and persisted transitions should publish through an outbox.

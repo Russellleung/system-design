@@ -2,7 +2,7 @@
 
 Use this as the index. Each question has its own focused file.
 
-For a 30-minute interview, do not implement every object listed. Implement the `30-Minute Interview Shape` section: core model, one service, 4-6 tests, and the hard invariant. Then explain production extensions verbally.
+Every file is scoped as one complete 30-minute exercise: clarify briefly, implement the listed model and service, prove the main invariant with focused tests, then discuss production extensions verbally.
 
 ## Questions
 
@@ -13,6 +13,11 @@ For a 30-minute interview, do not implement every object listed. Implement the `
 * [Movie Ticket Booking](questions/movie-ticket-booking.md)
 * [Splitwise / Expense Sharing](questions/splitwise-expense-sharing.md)
 * [Deck Of Cards / Blackjack](questions/deck-blackjack.md)
+* [RPN Calculator With Undo And Reset](questions/rpn-calculator.md)
+* [In-Memory Payment And Refund Engine](questions/payment-refund-engine.md)
+* [Modular Todo-List Application](questions/modular-todo-list.md)
+* [Refactoring A Legacy API Handler](questions/refactoring-legacy-api-handler.md)
+* [Unit Testing Transactional Workflows](questions/unit-testing-transactional-workflows.md)
 
 ## Common OOP Patterns To Mention
 

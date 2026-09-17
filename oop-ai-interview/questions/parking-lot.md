@@ -2,120 +2,95 @@
 
 ## Question
 
-Design a parking lot system.
+Design an in-memory parking lot that assigns compatible spots and releases them using tickets.
 
 ## Clarifying Questions
 
-* Is this in-memory or persistent?
-* Vehicle types: motorcycle, car, truck?
-* Spot types: small, compact, large, EV, disabled?
-* Do we need payment?
-* Do we need reservations?
-* Is concurrency in scope?
+* Which vehicle and spot types are required?
+* What is the compatibility and preference order?
+* Is payment or reservation in scope?
+* Is concurrency in scope, or should we explain it only?
 
-## Core Objects
+Assume motorcycles, cars, and trucks; no payment, persistence, or reservations.
+
+## Components To Implement
 
 ```text
-ParkingLot
-Floor
-ParkingSpot
-Vehicle
-Ticket
+VehicleType, SpotType
+Vehicle, ParkingSpot, Ticket, ParkingLot
+TicketRepository, InMemoryTicketRepository
+ParkingLotService
 SpotAssignmentStrategy
-PaymentService optional
+```
+
+## Relationships And Services
+
+```text
+ParkingLot owns its ParkingSpots.
+ParkingSpot owns only its current occupancy state.
+Ticket stores vehicleId and spotId; Vehicle does not hold Ticket history.
+TicketRepository stores and finds Tickets.
+ParkingLotService coordinates assignment and release; it does not own storage.
 ```
 
 ## Main Operations
 
 ```text
-parkVehicle(vehicle) -> ticket
+parkVehicle(vehicle) -> Ticket
 releaseVehicle(ticketId)
-findAvailableSpot(vehicleType)
-getAvailability()
+getAvailability(spotType)
 ```
 
 ## Invariants
 
 ```text
-One spot can hold at most one vehicle.
-One active ticket maps to exactly one occupied spot.
-A released ticket cannot be used again.
-Vehicle must fit the spot type.
+One spot holds at most one vehicle.
+One vehicle has at most one active ticket.
+One active ticket maps to one occupied spot.
+A released ticket cannot be reused.
+The vehicle must fit the spot type.
 ```
 
 ## AI Prompt
 
 ```text
-Create simple Java classes for a parking lot.
-Use ParkingLot, Floor, ParkingSpot, Vehicle, Ticket, and SpotAssignmentStrategy.
-Keep it in-memory and testable. No frameworks.
+Implement an in-memory Java parking lot with VehicleType, SpotType, Vehicle,
+ParkingSpot, ParkingLot, Ticket, TicketRepository, InMemoryTicketRepository,
+ParkingLotService, and SpotAssignmentStrategy.
+
+Support parkVehicle and releaseVehicle. A car may use compact or large; a
+motorcycle prefers motorcycle, then compact or large. Prevent the same vehicle
+from parking twice and prevent a released ticket from being reused. Keep spot
+selection deterministic.
+
+ParkingLot owns the spots. Ticket stores vehicleId and spotId. Vehicle must not
+contain ticket history. Store tickets behind TicketRepository. ParkingLotService
+coordinates assignment and release but must not contain a ticket Map.
+
+Use plain Java with no frameworks or persistence. Add JUnit tests for the
+required behavior. Do not add payment, reservations, controllers, or APIs.
 ```
 
 ## Tests
 
 ```text
-park car into available compact spot
-reject car when lot is full
-release spot and make it available again
-reject release with invalid ticket
-motorcycle can use motorcycle or compact spot if allowed
+park car in compatible spot
+reject parking when lot is full
+release makes spot available again
+reject invalid or already released ticket
+reject same vehicle parking twice
+motorcycle uses preferred compatible spot
 ```
 
-## Tradeoffs
+## Tradeoffs And Follow-Ups
 
 ```text
-Simple scan is fine for small lots.
-For scale, maintain available spot indexes by spot type.
-Strategy pattern helps swap nearest-spot vs cheapest-spot assignment.
-Concurrency needs locking around park/release.
+Linear scan is enough here; production can index free spots by type.
+Strategy separates assignment policy from parking state.
+Concurrent gates require ticket creation and spot occupation to be atomic.
+Production can use a DB transaction or row lock plus a unique active plate.
 ```
 
 ## Strong Answer
 
-> I would model the parking lot around the invariant that a spot has at most one active vehicle and a ticket represents that active occupancy. The first version can be in-memory with a spot assignment strategy. I would add tests for park, release, full lot, and invalid ticket. If concurrency is in scope, park and release need atomic locking around spot assignment.
-
-## 30-Minute Interview Shape
-
-### Build In 30 Minutes
-
-```text
-VehicleType enum
-SpotType enum
-Vehicle
-ParkingSpot
-Ticket
-ParkingLotService
-NearestAvailableSpotStrategy
-```
-
-### Hard Part To Emphasize
-
-```text
-Spot assignment must be atomic.
-Ticket and spot state must not drift.
-Vehicle-to-spot compatibility must be explicit.
-```
-
-### Deeper Edge Cases
-
-```text
-same vehicle tries to park twice
-release already released ticket
-compact spot unavailable, car can use large spot
-motorcycle uses motorcycle spot first, then compact if policy allows
-payment required before exit, if payment is in scope
-```
-
-### Production Extension
-
-```text
-DB transaction around ticket creation + spot update
-unique active ticket per vehicle plate
-availability index by lot/floor/spot type
-distributed lock or row lock for concurrent entry gates
-event stream for display boards
-```
-
-### 30-Minute Closing
-
-> For the interview version I would implement in-memory spot assignment and release, with tests around full lot, wrong spot type, and invalid ticket. In production I would protect the same invariant with a database transaction or row lock so two gates cannot assign the same spot.
+> I centered the model on one invariant: a spot has at most one active vehicle, represented by one active ticket. The strategy isolates placement policy from parking state. In production, ticket creation and spot occupation would be one transaction so two gates cannot assign the same spot.

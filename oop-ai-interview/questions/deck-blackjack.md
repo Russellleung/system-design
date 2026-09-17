@@ -2,126 +2,96 @@
 
 ## Question
 
-Design a deck of cards or blackjack game.
+Design an in-memory single-player Blackjack game against a dealer.
 
 ## Clarifying Questions
 
-* Generic deck or Blackjack-specific?
-* Number of players?
-* Dealer rules?
-* Betting in scope?
-* Need shuffle randomness testability?
+* Single player or multiple players?
+* Does the dealer stand or hit on soft 17?
+* Are betting and multiple decks required?
+* Must shuffle be deterministic in tests?
 
-## Core Objects
+Assume one player, one deck, dealer stands on all 17s, and no betting.
+
+## Components To Implement
 
 ```text
-Card
-Suit
-Rank
-Deck
-Hand
-Player
-Dealer
-Game
-ScoringPolicy
+Suit, Rank, Card
+Deck, Hand
+Player, Dealer
+GameState, BlackjackScoringPolicy, BlackjackGame
+```
+
+## Relationships And Services
+
+```text
+Deck owns undealt Cards.
+Player and Dealer each own one Hand.
+Hand owns dealt Cards but does not calculate game flow.
+BlackjackGame owns the current participants, Deck, and GameState.
+No repository or service is needed for one in-memory game.
 ```
 
 ## Main Operations
 
 ```text
-shuffle()
-deal()
-hit(player)
-stand(player)
-score(hand)
+start()
+hit()
+stand()
+playDealer()
 determineWinner()
 ```
 
 ## Invariants
 
 ```text
-A card can only be dealt once from a deck.
-A hand score follows game rules.
-Game cannot accept actions after it is finished.
-Dealer follows fixed rules.
+A card is dealt at most once from a Deck.
+Ace value adjusts from 11 to 1 as needed.
+Actions are accepted only in the correct GameState.
+Dealer follows the configured draw rule.
+Winner is calculated once the game is finished.
 ```
 
 ## AI Prompt
 
 ```text
-Create a Java Blackjack model.
-Use Card, Deck, Hand, Player, Dealer, and BlackjackGame.
-Make shuffle injectable so tests are deterministic.
-Add tests for Ace scoring and bust logic.
+Implement a single-player Java Blackjack game using Suit, Rank, Card, Deck,
+Hand, Player, Dealer, GameState, BlackjackScoringPolicy, and BlackjackGame.
+
+Support start, hit, stand, dealer play, and winner calculation. Aces count as 11
+unless converting them to 1 avoids a bust. Dealer stands on all 17s. Inject a
+Shuffler or preset deck so tests are deterministic. Reject actions in the wrong
+state.
+
+Deck owns undealt cards; Player and Dealer own their Hands; BlackjackGame owns
+the Deck, participants, and GameState. BlackjackScoringPolicy calculates scores
+without storing state. Do not add repositories, services, or global collections.
+
+Use plain Java with no betting, UI, persistence, or multiple players. Add focused
+JUnit tests for deck uniqueness, Aces, busts, dealer play, and invalid actions.
 ```
 
 ## Tests
 
 ```text
-deck has 52 unique cards
-dealt card removed from deck
-ace counts as 1 or 11
-player busts over 21
-dealer draws until 17
+new deck contains 52 unique cards
+dealt card leaves the deck
+one and multiple Aces score correctly
+player bust ends the turn
+dealer draws below 17 and stands at 17
+hit after stand or completion is rejected
+blackjack, bust, win, loss, and push resolve correctly
 ```
 
-## Tradeoffs
+## Tradeoffs And Follow-Ups
 
 ```text
-Inject random/shuffler for deterministic tests.
-Keep scoring policy separate from hand storage.
-Avoid mixing UI/input with game rules.
+Card, Deck, and Hand stay generic; scoring and flow hold Blackjack rules.
+Injected order makes tests deterministic.
+Production/extension can add a multi-deck shoe and configurable dealer rules.
+Betting and settlement remain separate from game rules.
 ```
 
 ## Strong Answer
 
-> I would keep the deck and hand generic, then put Blackjack-specific scoring into a policy. That lets us test card movement separately from game rules.
-
-## 30-Minute Interview Shape
-
-### Build In 30 Minutes
-
-```text
-Suit enum
-Rank enum
-Card
-Deck
-Hand
-Player
-Dealer
-BlackjackScoringPolicy
-BlackjackGame
-```
-
-### Hard Part To Emphasize
-
-```text
-Deck uniqueness and card movement.
-Ace scoring as 1 or 11.
-Game state controls allowed actions.
-```
-
-### Deeper Edge Cases
-
-```text
-deck cannot deal same card twice
-empty deck
-multiple aces
-player hits after standing
-dealer draws until soft/hard 17 depending on rule
-determine winner after bust/blackjack/push
-```
-
-### Production Extension
-
-```text
-inject shuffler/random for deterministic tests
-support multiple decks/shoe
-betting and settlement separated from game rules
-state machine for player turns
-audit log for dealt cards in real-money game
-```
-
-### 30-Minute Closing
-
-> I would implement the deck, hand scoring, and a simple game flow. The most important tests are 52 unique cards, Ace scoring, bust logic, and invalid actions after the game or turn has ended.
+> I kept Card, Deck, and Hand generic, while BlackjackScoringPolicy and BlackjackGame own the specific rules. An injected deck order makes Ace, bust, dealer, and winner scenarios deterministic. Betting remains a separate concern.

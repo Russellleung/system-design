@@ -34,9 +34,9 @@ multiple vehicle types, and we do not need payment unless requested.
 
 ---
 
-### 2. Identify Objects
+### 2. Define Components And Relationships
 
-List nouns and responsibilities.
+List the components, their relationships, who owns state, and which service coordinates the use case.
 
 Use:
 
@@ -47,6 +47,25 @@ Strategy objects: allow replaceable logic.
 Repository objects: hide storage if needed.
 ```
 
+State ownership:
+
+```text
+Entity: owns its own fields and valid state transitions.
+Aggregate: owns its contained child objects when they share one lifecycle.
+Repository: owns storage and query collections.
+Service: coordinates a use case; it should not become the storage container.
+Related objects usually reference IDs instead of holding growing object lists.
+```
+
+Example:
+
+```text
+Restaurant owns its menu, not a List<Order>.
+Order stores restaurantId and customerId.
+OrderRepository stores and queries orders.
+OrderService loads, validates, changes, and saves an Order.
+```
+
 Say:
 
 > I will separate domain objects from orchestration logic so the model stays testable.
@@ -55,20 +74,19 @@ Say:
 
 ### 3. Define Invariants
 
-Before coding, state the rules that must never break.
+Before coding, list the rules that must never break. Pick only the ones relevant to the question.
 
-Examples:
-
-```text
-A parking spot cannot hold two vehicles.
-A library copy cannot be borrowed by two users.
-An elevator cannot be in two floors at once.
-A split expense must balance to zero.
-```
+* **Unique ID:** Give each resource a stable identity. Use compound identity when needed, such as `showtimeId + seatId`. No two active records should claim the same resource.
+* **Idempotency:** Decide what happens when a command is repeated. A repeated `confirmBooking(holdId)` should return the existing booking, not create another. Single-threaded code avoids simultaneous races, but duplicate retries still exist.
+* **State transition:** Define allowed transitions and reject invalid or terminal-state changes. Examples: `AVAILABLE -> HELD -> BOOKED` and `PENDING -> ACCEPTED -> PREPARING`.
+* **Authorization:** Check who owns or may change the resource. Only the hold owner confirms a booking; only the owning restaurant accepts an order.
+* **Capacity:** Do not exceed inventory, loan, or occupancy limits. Validate compatibility and make multi-resource operations all-or-nothing when required.
+* **Arithmetic:** Use `BigDecimal` for money, define rounding, ensure splits equal the original amount, and keep balances at zero-sum. Snapshot prices at checkout.
+* **Expiry:** Inject `Clock`, define the exact expiry boundary, reject expired actions, and ensure expiry cannot undo a later successful state such as `BOOKED`.
 
 Say:
 
-> The important invariant is...
+> The main invariant is that one showtime-seat can have only one owner. This exercise is single-threaded, so there is no simultaneous race, but I still keep check-and-update together. In production that operation would need an atomic database lock or Redis script.
 
 ---
 
@@ -136,15 +154,42 @@ Build the whole system.
 Good prompt:
 
 ```text
-Create simple Java classes for ParkingLot, Floor, ParkingSpot, Vehicle, and Ticket.
-Keep it in-memory. Do not use frameworks. Make it easy to unit test.
+Components:
+- ParkingLot, ParkingSpot, Vehicle, Ticket
+- TicketRepository and InMemoryTicketRepository
+- ParkingLotService and SpotAssignmentStrategy
+
+Relationships:
+- ParkingLot owns ParkingSpots.
+- Ticket references vehicleId and spotId.
+- Vehicle does not hold a ticket history.
+
+Service and storage:
+- TicketRepository owns ticket storage.
+- ParkingLotService coordinates park/release but owns no storage map.
+- SpotAssignmentStrategy selects a compatible spot without storing state.
+
+Behavior:
+- Implement parkVehicle and releaseVehicle.
+- One occupied spot has exactly one active ticket.
+- Reject duplicate parking and repeated release.
+
+Constraints:
+- Plain Java, in-memory, deterministic, no frameworks or payment.
+- Add focused JUnit tests for the listed behavior.
 ```
 
-Then:
+The prompt should always specify:
 
 ```text
-Now implement parkVehicle and releaseVehicle.
-Respect this invariant: one occupied spot has exactly one active ticket.
+Components to create
+Relationships between components
+Entity/aggregate ownership
+Service responsibilities
+Repository/storage responsibilities
+Operations and invariants
+Explicitly excluded scope
+Tests to generate
 ```
 
 ---
@@ -155,6 +200,9 @@ Check:
 
 ```text
 Does each class have one clear responsibility?
+Are component relationships implemented as specified?
+Does the service coordinate rather than store all state?
+Are collections held by the correct aggregate or repository?
 Are there hidden global variables?
 Are edge cases handled?
 Are names clear?
@@ -254,10 +302,16 @@ Who are the actors?
 What are the main operations?
 What is the core invariant?
 What state transitions exist?
+What uniquely identifies each resource?
+What happens if the same command is repeated?
+Which operation must be all-or-nothing?
+Who owns or may change each resource?
+Are money, rounding, or expiry involved?
 What can fail?
 What must be unique?
 What should be extensible?
 Is concurrency in scope?
+If single-threaded, what production race would still need protection?
 Is persistence in scope?
 ```
 
@@ -281,4 +335,3 @@ Framework setup
 Unreviewed AI code
 No tests
 ```
-

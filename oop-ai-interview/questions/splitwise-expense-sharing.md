@@ -2,122 +2,100 @@
 
 ## Question
 
-Design an expense sharing system.
+Design an in-memory expense-sharing system for one currency.
 
 ## Clarifying Questions
 
-* Equal split only or custom percentages?
-* Groups or direct expenses?
-* Multi-currency?
-* Need settle-up optimization?
-* Can expenses be edited/deleted?
+* Equal, exact, or percentage splits?
+* Are groups required?
+* Are editing, deletion, and debt simplification required?
+* Is multi-currency in scope?
 
-## Core Objects
+Assume groups, equal and exact splits, one currency, and no editing or debt simplification.
+
+## Components To Implement
 
 ```text
-User
-Group
-Expense
-Split
-BalanceSheet
-Settlement
+User, Group
+Expense, Split
 SplitStrategy
+BalanceSheet, Settlement
+GroupRepository, InMemoryGroupRepository
+ExpenseRepository, InMemoryExpenseRepository
+ExpenseService
+```
+
+## Relationships And Services
+
+```text
+Group stores member IDs, not each member's Expenses.
+GroupRepository stores Groups and performs group lookup.
+Expense owns immutable Splits and references groupId and payerId.
+ExpenseRepository stores the audit records.
+BalanceSheet stores the derived pairwise balance projection.
+ExpenseService validates and coordinates; it does not own storage maps.
 ```
 
 ## Main Operations
 
 ```text
-addExpense(paidBy, participants, amount, splitStrategy)
+addExpense(groupId, paidBy, amount, participants, strategy)
 getBalances(groupId)
-settleUp(fromUser, toUser, amount)
-simplifyDebts(groupId)
+settleUp(groupId, fromUser, toUser, amount)
 ```
 
 ## Invariants
 
 ```text
-Sum of splits equals expense amount.
-Group balances sum to zero.
-Settlement reduces debt.
-Expense edits must reverse old balance impact before applying new one.
+Split amounts equal the Expense amount exactly.
+Signed balance changes for every Expense sum to zero.
+Only group members participate.
+Settlement reduces an existing debt and cannot exceed it.
+Expense is immutable.
 ```
 
 ## AI Prompt
 
 ```text
-Create a Java in-memory Splitwise-style expense system.
-Support equal split and exact split strategies.
-Maintain pairwise balances.
-Add tests that balances sum to zero.
+Implement an in-memory Java expense-sharing system using User, Group, Expense,
+Split, SplitStrategy, EqualSplitStrategy, ExactSplitStrategy, BalanceSheet,
+Settlement, ExpenseRepository, InMemoryExpenseRepository, and ExpenseService.
+Also use GroupRepository and InMemoryGroupRepository.
+
+Use BigDecimal with two decimal places. Adding an expense must validate group
+membership and make all signed balance changes sum to zero. Divide remainder
+cents deterministically. Support settleUp but reject over-settlement. Keep
+Expense immutable.
+
+Group stores member IDs only and is stored through GroupRepository. Expense owns immutable Splits and is stored through
+ExpenseRepository. BalanceSheet owns the derived pairwise balances. ExpenseService
+coordinates validation and updates but must not contain expense or balance maps.
+
+Do not implement editing, multi-currency, persistence, or debt simplification.
+Add JUnit tests for totals, rounding, zero-sum balances, and settlement.
 ```
 
 ## Tests
 
 ```text
-equal split among three users
-exact split validates total amount
-settlement reduces balance
-balances across group sum to zero
-simplify debts produces fewer payments
+equal split among three users allocates remainder cents deterministically
+exact split rejects totals that do not equal the expense
+balances for an expense sum to zero
+reject non-member participant
+settlement reduces debt
+reject over-settlement
 ```
 
-## Tradeoffs
+## Tradeoffs And Follow-Ups
 
 ```text
-Pairwise balances are easy to query.
-Ledger of expenses is better for audit.
-Use strategies for equal/exact/percentage splits.
-Multi-currency requires FX snapshot.
+Pairwise balances are fast to query; immutable Expenses provide audit history.
+Strategies isolate equal and exact calculation.
+Production saves Expense and balance projection in one transaction.
+Edits reverse the old Expense before creating a replacement.
+Multi-currency requires an FX-rate snapshot.
 ```
 
 ## Strong Answer
 
-> The core invariant is that every expense nets to zero across users. I would store expenses as immutable events and maintain balances as a projection. That gives auditability and fast balance reads.
-
-## 30-Minute Interview Shape
-
-### Build In 30 Minutes
-
-```text
-User
-Group
-Expense
-Split
-SplitStrategy
-BalanceSheet
-Settlement
-ExpenseService
-```
-
-### Hard Part To Emphasize
-
-```text
-Sum of splits must equal expense amount.
-Balances must net to zero.
-Use immutable expenses plus balance projection.
-```
-
-### Deeper Edge Cases
-
-```text
-exact split does not sum to amount
-payer is not in participant list
-settlement amount exceeds debt
-expense edit requires reversing old effect
-rounding cents for percentage split
-multi-currency needs FX snapshot
-```
-
-### Production Extension
-
-```text
-ledger-style expense events
-idempotency key for addExpense
-DB transaction for expense + balance projection
-debt simplification job
-audit trail for edits/deletes
-```
-
-### 30-Minute Closing
-
-> I would implement equal and exact splits first, then maintain pairwise balances. The key invariant is that every expense nets to zero. For production, I would keep immutable expense events and treat balances as a derived projection.
+> Every expense must net to zero, including remainder cents. I keep Expense immutable and maintain balances as a projection for fast reads. In production, the expense and projection update belong in one transaction; edits would reverse the old event before adding a replacement.
