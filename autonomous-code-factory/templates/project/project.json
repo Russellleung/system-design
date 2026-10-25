@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "slug": "replace-me",
+  "name": "Replace Me",
+  "status": "discovery",
+  "demoJourney": "Describe one end-to-end user journey",
+  "acceptanceCriteria": [],
+  "budgets": {
+    "currency": "USD",
+    "cloudMonthlyTarget": 0,
+    "cloudMonthlyHardLimit": 10,
+    "modelRunLimit": 10,
+    "deadline": null,
+    "freezeAt": null
+  },
+  "providers": {
+    "application": null,
+    "database": null,
+    "ai": null
+  },
+  "permissions": {
+    "createFreeResources": false,
+    "createPaidResources": false,
+    "deployPreview": false,
+    "deployProduction": false,
+    "modifySecrets": false
+  },
+  "verification": {
+    "commands": [],
+    "healthPath": null,
+    "publicUrl": null
+  }
+}

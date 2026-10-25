@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run Hackathon MVP"
+  short_description: "Build and resume verified hackathon MVPs"
+  default_prompt: "Use $run-hackathon-mvp to build or resume this factory project through a verified deployment."
