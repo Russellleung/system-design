@@ -54,8 +54,11 @@ export default function Home() {
     const form = new FormData(); form.append("image", file);
     try {
       const response = await fetch("/api/analyse", { method: "POST", body: form });
-      const payload = (await response.json()) as Analysis & { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "Analysis is unavailable.");
+      const payload = (await response.json()) as Analysis & { error?: string; requestId?: string };
+      if (!response.ok) {
+        const reference = payload.requestId ? ` Reference: ${payload.requestId}` : "";
+        throw new Error(`${payload.error ?? "Analysis is unavailable."}${reference}`);
+      }
       setAnalysis(payload); setStatus("review");
     } catch (error) {
       setStatus("error"); setMessage(error instanceof Error ? error.message : "Analysis is unavailable.");

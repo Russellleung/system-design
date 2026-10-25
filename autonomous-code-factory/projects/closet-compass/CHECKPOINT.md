@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-25T10:24:25.581Z
+Updated: 2026-10-25T18:55:00+08:00
 
 ## Working now
 
@@ -9,11 +9,14 @@ Updated: 2026-10-25T10:24:25.581Z
 - The production Docker image builds and passes `/api/health` and homepage smoke tests.
 - Render deployment succeeded from `feature/closet-compass-deployment`.
 - Render's official MCP server is connected to Codex through OAuth.
+- Render CLI access is configured as a fallback for deployment and runtime logs.
+- Vision failures now return a safe request reference and log structured provider diagnostics without logging the photo or API key.
+- The vision request uses `gpt-5.4-mini` by default and strict structured output.
 
 ## In progress
 
-- Record the public Render URL and run the remote smoke test.
-- Test live photo analysis from a real phone with the configured OpenAI secret.
+- Deploy the vision diagnostics/model update and test live photo analysis again from a real phone.
+- Use the returned reference to correlate any remaining failure with Render logs.
 
 ## Blocked or awaiting decisions
 
@@ -26,13 +29,14 @@ Updated: 2026-10-25T10:24:25.581Z
 | `85700a5` | Local Node | lint, portable build, Vinext build | Passed |
 | `85700a5` | Local Docker | container health and homepage smoke | Passed |
 | `85700a5` | Render | Blueprint deploy | Reported working by user; public URL not yet recorded |
+| pending commit | Local Docker / Node 22 | production Docker build and ESLint | Passed |
 
 ## Live resources
 
 | Provider | Resource ID | URL | Plan/cost | Cleanup action |
 | --- | --- | --- | --- | --- |
-| Render | `srv-dbetdd67bikc73be7o2g` | Record through Render MCP | Free web service | Delete or suspend when no longer needed |
+| Render | `srv-dbetdd67bikc73be7o2g` | `https://closet-compass.onrender.com` | Free web service | Delete or suspend when no longer needed |
 
 ## Next action
 
-In a new Codex thread, query the Render service through MCP, record its public URL and deployed commit, then run `APP_URL=<url> npm run smoke`.
+Deploy the pending fix, run the remote smoke test, retry a real wardrobe photo, and inspect the correlated structured log if it still fails.
