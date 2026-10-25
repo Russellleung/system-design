@@ -17,6 +17,12 @@
 4. Re-run the recorded local checks before trusting earlier results.
 5. Continue the highest-value unblocked task and update the checkpoint.
 
+## Using pstack
+
+Use the installed pstack workflows for investigation, architecture review, TDD and project-specific verification when they improve the current task. `$poteto-mode` can guide a full implementation pass; `$create-verification-skill` and `$maintain-verification-skill` can capture UI verification once the app works.
+
+Pstack is an engineering workflow, not the factory's state store, scheduler, budget enforcer or deployment provider. The project contract and observed evidence remain authoritative. Reinvoke a pstack skill when needed rather than assuming a mode persists across new agent threads.
+
 ## Verification and release
 
 Verification must observe behaviour, not only compilation:
