@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-25T18:55:00+08:00
+Updated: 2026-10-25T18:35:00+08:00
 
 ## Working now
 
@@ -15,7 +15,7 @@ Updated: 2026-10-25T18:55:00+08:00
 
 ## In progress
 
-- Deploy the vision diagnostics/model update and test live photo analysis again from a real phone.
+- Test live photo analysis again from a real phone.
 - Use the returned reference to correlate any remaining failure with Render logs.
 
 ## Blocked or awaiting decisions
@@ -29,7 +29,9 @@ Updated: 2026-10-25T18:55:00+08:00
 | `85700a5` | Local Node | lint, portable build, Vinext build | Passed |
 | `85700a5` | Local Docker | container health and homepage smoke | Passed |
 | `85700a5` | Render | Blueprint deploy | Reported working by user; public URL not yet recorded |
-| pending commit | Local Docker / Node 22 | production Docker build and ESLint | Passed |
+| `7cb3e24` | Local Docker / Node 22 | production Docker build and ESLint | Passed |
+| `7cb3e24` | Render | deploy `dep-dbetliu7bikc73bf37vg` | Live |
+| `7cb3e24` | Render public URL | `/api/health` and `/` smoke test under Node 22 | Passed |
 
 ## Live resources
 
@@ -39,4 +41,4 @@ Updated: 2026-10-25T18:55:00+08:00
 
 ## Next action
 
-Deploy the pending fix, run the remote smoke test, retry a real wardrobe photo, and inspect the correlated structured log if it still fails.
+Retry a real wardrobe photo and inspect the correlated structured log if it still fails.
