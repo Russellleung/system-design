@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-25T18:35:00+08:00
+Updated: 2026-10-25T19:15:00+08:00
 
 ## Working now
 
@@ -11,16 +11,19 @@ Updated: 2026-10-25T18:35:00+08:00
 - Render's official MCP server is connected to Codex through OAuth.
 - Render CLI access is configured as a fallback for deployment and runtime logs.
 - Vision failures now return a safe request reference and log structured provider diagnostics without logging the photo or API key.
-- The vision request uses `gpt-5.4-mini` by default and strict structured output.
+- Vision analysis is provider-neutral: Gemini is the default and OpenAI remains a configurable fallback.
+- Gemini uses `gemini-3.5-flash-lite`, structured output and server-side semantic validation.
+- The photo-ready UI discloses Gemini free-tier data use before submission.
 
 ## In progress
 
-- Test live photo analysis again from a real phone.
-- Use the returned reference to correlate any remaining failure with Render logs.
+- Commit and deploy the verified Gemini migration.
+- Add `GEMINI_API_KEY` directly in Render, then test a real wardrobe photo.
 
 ## Blocked or awaiting decisions
 
 - Saved wardrobes, authentication and Supabase provisioning are intentionally out of scope pending a product decision.
+- Live Gemini verification awaits a user-created Google AI Studio key; agents must not receive or commit it.
 
 ## Verification evidence
 
@@ -32,6 +35,8 @@ Updated: 2026-10-25T18:35:00+08:00
 | `7cb3e24` | Local Docker / Node 22 | production Docker build and ESLint | Passed |
 | `7cb3e24` | Render | deploy `dep-dbetliu7bikc73bf37vg` | Live |
 | `7cb3e24` | Render public URL | `/api/health` and `/` smoke test under Node 22 | Passed |
+| pending commit | Local Docker / Node 22 | Gemini production build, TypeScript and ESLint | Passed |
+| pending commit | Local Docker | `/api/health` and missing-Gemini-key error path | Passed |
 
 ## Live resources
 
@@ -41,4 +46,4 @@ Updated: 2026-10-25T18:35:00+08:00
 
 ## Next action
 
-Retry a real wardrobe photo and inspect the correlated structured log if it still fails.
+Deploy the migration, add `GEMINI_API_KEY` in Render, retry a real wardrobe photo, and inspect the correlated structured log if it fails.

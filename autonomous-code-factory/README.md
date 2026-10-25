@@ -77,7 +77,7 @@ One incident remains a project lesson until it is reproduced or has a safety rea
 4. Explain the visible style and three wardrobe gaps.
 5. Open Australian shopping searches for complementary pieces.
 
-It has a portable Docker image, Render Blueprint, health endpoint, deployment smoke test, cost policy and optional Supabase migration structure. It does not persist photos or analysis results. Live analysis needs a server-side `OPENAI_API_KEY`; a clearly labelled demo path works without it.
+It has a portable Docker image, Render Blueprint, health endpoint, deployment smoke test, cost policy and optional Supabase migration structure. It does not persist photos or analysis results. Live analysis defaults to Gemini behind a provider adapter and needs a server-side `GEMINI_API_KEY`; OpenAI remains an optional fallback and a clearly labelled demo path works without either key.
 
 The successful run established the first reusable lessons: test the exact container, include health and public smoke checks, delay database provisioning until required, connect provider MCP through OAuth, and push deployment work through an explicit feature branch.
 

@@ -26,4 +26,4 @@ One photo is not treated as the complete wardrobe. The system does not infer gen
 
 ## Current stack
 
-Next.js/TypeScript provides the mobile UI and server endpoint in one deployable service. The app builds into an OCI-compatible Docker image and currently runs on Render's free web-service plan in Singapore. OpenAI provides multimodal analysis. Supabase configuration exists only as a future migration path.
+Next.js/TypeScript provides the mobile UI and server endpoint in one deployable service. The app builds into an OCI-compatible Docker image and currently runs on Render's free web-service plan in Singapore. Gemini provides multimodal analysis by default through a provider adapter, with OpenAI retained as a fallback. Supabase configuration exists only as a future migration path.

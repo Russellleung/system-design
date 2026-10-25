@@ -6,8 +6,8 @@
   "demoJourney": "On a phone, photograph a wardrobe, review the visible inventory and style analysis, then open shopping searches for three complementary pieces.",
   "acceptanceCriteria": [
     "A phone user can capture or select an image under 10 MB.",
-    "With an OpenAI key, the server returns grounded visible garments, style and exactly three gaps.",
-    "Without an OpenAI key, the UI offers clearly labelled demo results rather than presenting them as analysis.",
+    "With a configured vision-provider key, the server returns grounded visible garments, style and exactly three gaps.",
+    "Without a configured vision-provider key, the UI offers clearly labelled demo results rather than presenting them as analysis.",
     "The user can correct or remove detected garments before following recommendations.",
     "The public health endpoint and homepage smoke test pass for the deployed commit."
   ],
@@ -22,7 +22,7 @@
   "providers": {
     "application": "render",
     "database": null,
-    "ai": "openai"
+    "ai": "gemini-with-openai-fallback"
   },
   "permissions": {
     "createFreeResources": false,

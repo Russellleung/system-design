@@ -80,7 +80,7 @@ export default function Home() {
       <nav className="border-b border-[#20251f]/10 bg-[#f4f0e7]/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
           <a href="#top" className="flex items-center gap-2 font-semibold tracking-[-0.02em]"><span className="grid h-9 w-9 place-items-center rounded-full bg-[#2d4a3e] text-[#fffaf0]"><Sparkles size={17}/></span>Closet Compass</a>
-          <span className="flex items-center gap-1.5 text-xs text-[#556157]"><Lock size={13}/> Photo analysed securely</span>
+          <span className="flex items-center gap-1.5 text-xs text-[#556157]"><Lock size={13}/> Photo not stored by Closet Compass</span>
         </div>
       </nav>
 
@@ -111,7 +111,7 @@ export default function Home() {
               <img src={preview} alt="Your selected wardrobe" className="absolute inset-0 h-full w-full object-cover"/>
               <button onClick={() => inputRef.current?.click()} className="absolute bottom-5 left-5 flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold shadow-sm"><ImagePlus size={15}/> Choose another</button>
             </div>
-            <div className="flex flex-col justify-center rounded-[2rem] bg-[#2d4a3e] p-8 text-white sm:p-10"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#bfcfc4]">Photo ready</p><h2 className="mt-5 font-serif text-4xl tracking-[-0.035em]">Let’s see what works together.</h2><p className="mt-4 leading-6 text-[#d7e0da]">We only assess visible clothing. You’ll review every detected item before recommendations are made.</p><button disabled={status === "analysing"} onClick={analysePhoto} className="mt-8 flex w-full items-center justify-center gap-2 rounded-full bg-[#fff8ef] px-5 py-3.5 font-semibold text-[#2d4a3e] disabled:opacity-70">{status === "analysing" ? <><LoaderCircle className="animate-spin" size={18}/> Analysing photo…</> : <><Sparkles size={18}/> Analyse my wardrobe</>}</button>{status === "error" && <div className="mt-5 rounded-2xl bg-black/15 p-4 text-sm leading-5"><p>{message}</p><button onClick={useDemo} className="mt-3 font-semibold underline underline-offset-4">Preview clearly labelled demo results</button></div>}</div>
+            <div className="flex flex-col justify-center rounded-[2rem] bg-[#2d4a3e] p-8 text-white sm:p-10"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#bfcfc4]">Photo ready</p><h2 className="mt-5 font-serif text-4xl tracking-[-0.035em]">Let’s see what works together.</h2><p className="mt-4 leading-6 text-[#d7e0da]">We only assess visible clothing. You’ll review every detected item before recommendations are made.</p><p className="mt-3 text-xs leading-5 text-[#bfcfc4]">Free prototype: this photo is sent to Google Gemini and may be used by Google to improve its products. Closet Compass does not store it.</p><button disabled={status === "analysing"} onClick={analysePhoto} className="mt-8 flex w-full items-center justify-center gap-2 rounded-full bg-[#fff8ef] px-5 py-3.5 font-semibold text-[#2d4a3e] disabled:opacity-70">{status === "analysing" ? <><LoaderCircle className="animate-spin" size={18}/> Analysing photo…</> : <><Sparkles size={18}/> Analyse my wardrobe</>}</button>{status === "error" && <div className="mt-5 rounded-2xl bg-black/15 p-4 text-sm leading-5"><p>{message}</p><button onClick={useDemo} className="mt-3 font-semibold underline underline-offset-4">Preview clearly labelled demo results</button></div>}</div>
           </div>}
 
           {analysis && status === "review" && <div className="space-y-8">
@@ -126,7 +126,7 @@ export default function Home() {
           <input ref={inputRef} type="file" accept="image/*" capture="environment" onChange={choosePhoto} className="sr-only"/>
         </div>
       </section>
-      <footer className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-8 text-xs text-[#718076] sm:flex-row sm:justify-between sm:px-8"><p>Closet Compass · Recommendations are suggestions, not rules.</p><p>We never infer your body, gender, age or identity from a wardrobe photo.</p></footer>
+      <footer className="mx-auto grid max-w-6xl gap-3 px-5 py-8 text-xs text-[#718076] sm:grid-cols-2 sm:px-8"><p>Closet Compass · Recommendations are suggestions, not rules.</p><p>We never infer your body, gender, age or identity from a wardrobe photo.</p><p className="sm:col-span-2">Free prototype: your photo is sent to Google Gemini for analysis and is not stored by Closet Compass. Google may use free-tier submissions to improve its products.</p></footer>
     </main>
   );
 }

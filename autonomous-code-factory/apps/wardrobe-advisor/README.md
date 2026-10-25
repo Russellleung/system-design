@@ -2,7 +2,7 @@
 
 Mobile-first wardrobe analysis prototype. Visitors can photograph a wardrobe, review an AI-generated visible inventory, understand the style detected in the image, and open shopping searches for complementary pieces.
 
-Live analysis requires a server-side `OPENAI_API_KEY`. Without it, the upload and results experience can be tested through the clearly labelled demo path. Images are sent directly to the analysis request and are not stored by this application.
+Live analysis defaults to Google Gemini and requires a server-side `GEMINI_API_KEY`. Without it, the upload and results experience can be tested through the clearly labelled demo path. Images are sent directly to the selected provider and are not stored by this application. The free Gemini tier may use submissions to improve Google's products; the UI discloses this before use.
 
 Product boundaries: one photo is evidence of visible items rather than a complete wardrobe; users can correct the inventory; the system does not infer protected or sensitive traits; recommendations link to shopping searches rather than claiming live stock or prices.
 
@@ -24,18 +24,19 @@ npm ci
 PORTABLE_DOCKER_BUILD=1 npm run build:portable
 docker build -t closet-compass .
 docker run --rm -p 10000:10000 \
-  -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+  -e VISION_PROVIDER=gemini \
+  -e GEMINI_API_KEY="$GEMINI_API_KEY" \
   closet-compass
 APP_URL=http://127.0.0.1:10000 npm run smoke
 ```
 
-The demo path works without an OpenAI key. Live photo analysis requires `OPENAI_API_KEY`; keep it server-side. The Supabase service-role key is reserved for migrations or trusted server jobs and must never be exposed through a `NEXT_PUBLIC_` variable.
+The demo path works without a provider key. Live photo analysis defaults to `VISION_PROVIDER=gemini` and requires `GEMINI_API_KEY`; keep it server-side. Set `VISION_PROVIDER=openai` to use the retained `OPENAI_API_KEY` fallback. The Supabase service-role key is reserved for migrations or trusted server jobs and must never be exposed through a `NEXT_PUBLIC_` variable.
 
 ### First deployment
 
 1. Push the repository to a Git provider supported by Render.
 2. In Render, create a Blueprint from the repository's root `render.yaml`.
-3. Enter `OPENAI_API_KEY`. Leave the optional Supabase variables blank for the current MVP.
+3. Enter `GEMINI_API_KEY`. Leave the optional OpenAI and Supabase variables blank for the current MVP.
 4. Wait for `/api/health` to become healthy.
 5. Run `APP_URL=https://<render-hostname> npm run smoke` locally.
 6. Confirm the camera/upload journey on a real phone and verify that demo mode remains clearly labelled when live analysis is unavailable.
