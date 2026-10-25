@@ -10,7 +10,7 @@ Success is time to a reliable demo and acceptance-criteria coverage—not genera
 
 ```mermaid
 flowchart TD
-    U[User: brief, decisions, feedback] <--> C[Codex + pstack]
+    U[User: brief, decisions, feedback] <--> C[Coding agent + optional workflow plugins]
     C <--> S[Project contract and checkpoints]
     C --> R[Research and MCP tools]
     C --> W[Isolated implementation work]
@@ -24,7 +24,7 @@ flowchart TD
     K --> W
 ```
 
-Codex and pstack provide investigation and engineering judgment. Deterministic helpers own repeatable operations such as project initialization, validation, migrations, smoke tests and provider reconciliation. Project files are the durable handoff between agents; chat history is useful evidence but not the system of record.
+The active coding agent provides investigation and engineering judgment; optional tools such as pstack can add structured workflows. Deterministic helpers own repeatable operations such as project initialization, validation, migrations, smoke tests and provider reconciliation. Project files are the durable handoff between agents; vendor memory and chat history are useful evidence but not the system of record.
 
 ## Default deployment shape
 

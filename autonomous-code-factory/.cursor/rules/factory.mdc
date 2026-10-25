@@ -1,0 +1,11 @@
+---
+description: Shared operating contract for the Autonomous MVP Factory
+globs: "**/*"
+alwaysApply: true
+---
+
+# Autonomous MVP Factory — Cursor entry point
+
+Read and follow `AGENTS.md` and `docs/agent-onboarding.md` before changing a project. Use the same project contracts, permissions, verification evidence and learning loop as every other agent; do not create a Cursor-specific state format.
+
+For a new project, use `node scripts/init-project.mjs`. For a resumed project, read its five handoff files and reconcile them with Git and live provider state. Run `node scripts/preflight.mjs --release <project-directory>` before claiming release readiness.

@@ -1,5 +1,7 @@
 # MVP runbook
 
+Run `node scripts/preflight.mjs` before local work and `node scripts/preflight.mjs --release projects/<slug>` before release work. See `agent-onboarding.md` for the cross-agent capability and integration contract.
+
 ## New project
 
 1. Run `node scripts/init-project.mjs <slug> "<name>"`.

@@ -4,11 +4,12 @@ These instructions apply to this directory and every project beneath it.
 
 ## Start or resume correctly
 
-1. Read `README.md` and the relevant project files before changing code.
-2. For a new MVP, run `node scripts/init-project.mjs <slug> "<name>"` and complete the generated contract before implementation.
-3. For an existing MVP, read `project.json`, `PROJECT.md`, `CHECKPOINT.md`, `DECISIONS.md`, and `LESSONS.md`; then reconcile them with Git status and live provider state.
-4. Do not treat a previous agent's completion claim as evidence. Re-run the checks named in the project contract.
-5. Update `CHECKPOINT.md` after a material milestone and before ending a turn that leaves work unfinished.
+1. Read `docs/agent-onboarding.md`, `README.md` and the relevant project files before changing code.
+2. Run `node scripts/preflight.mjs` for local work or `node scripts/preflight.mjs --release projects/<slug>` for release work. Record genuine blockers rather than bypassing the check.
+3. For a new MVP, run `node scripts/init-project.mjs <slug> "<name>"` and complete the generated contract before implementation.
+4. For an existing MVP, read `project.json`, `PROJECT.md`, `CHECKPOINT.md`, `DECISIONS.md`, and `LESSONS.md`; then reconcile them with Git status and live provider state.
+5. Do not treat a previous agent's completion claim as evidence. Re-run the checks named in the project contract.
+6. Update `CHECKPOINT.md` after a material milestone and before ending a turn that leaves work unfinished.
 
 ## Operating constraints
 
@@ -19,6 +20,7 @@ These instructions apply to this directory and every project beneath it.
 - Do not create paid resources, replace secrets, publish externally, or delete infrastructure without authority for that action.
 - Bind verification evidence to the source commit and deployed release. Test the public service after deployment.
 - Record unexpected provider behaviour as evidence in `LESSONS.md`; do not immediately turn one incident into a universal rule.
+- Treat skills, plugins and MCP servers as optional adapters unless the project contract names them. Always preserve a documented CLI or manual fallback.
 
 ## Finish the learning loop
 

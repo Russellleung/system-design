@@ -2,9 +2,19 @@
 
 A reusable workflow for turning a hackathon brief into a deployed, verified MVP and improving the workflow from evidence after each run.
 
-The factory is currently interactive: Codex runs the workflow with pstack, project files preserve state, deterministic scripts enforce repeatable mechanics, and provider MCP connections expose live deployment evidence. It is not yet an unattended scheduler or self-healing production platform.
+The factory is currently interactive: Codex, Claude Code, Cursor or another capable coding agent runs the shared workflow; project files preserve state; deterministic scripts enforce repeatable mechanics; and optional provider integrations expose live deployment evidence. It is not yet an unattended scheduler or self-healing production platform.
 
 ## Start here
+
+Any fresh Codex, Claude Code or Cursor agent should begin with [`docs/agent-onboarding.md`](./docs/agent-onboarding.md). Vendor entry files (`AGENTS.md`, `CLAUDE.md` and `.cursor/rules/factory.mdc`) all point to the same protocol, tool matrix and handoff format.
+
+Run a capability check before starting:
+
+```sh
+node scripts/preflight.mjs
+# Before deployment/release:
+node scripts/preflight.mjs --release projects/<slug>
+```
 
 ### New project
 
@@ -19,7 +29,7 @@ Complete the generated `projects/my-project/PROJECT.md` and `project.json`, then
 node scripts/validate-project.mjs projects/my-project
 ```
 
-In Codex, start with:
+In a client that supports repository skills, start with:
 
 ```text
 $run-hackathon-mvp Read projects/my-project and build the smallest complete
@@ -27,7 +37,7 @@ demo journey. Preserve checkpoints, verify the production artifact, and do not
 exceed the recorded budgets or external-action permissions.
 ```
 
-The skill source is versioned in this repository. If `$run-hackathon-mvp` is not present in a fresh agent's skill catalogue, tell it to read `skills/run-hackathon-mvp/SKILL.md` directly or install that folder into its Codex skills directory, then start a new thread. The scoped `AGENTS.md` remains effective for repository work even when the named skill is not installed globally.
+The skill source is versioned in this repository. If `$run-hackathon-mvp` is not present in a fresh agent's skill catalogue, tell it to read `skills/run-hackathon-mvp/SKILL.md` directly or install/import that folder using the client's supported skill mechanism, then start a new thread if the client requires discovery at startup. The scoped repository instructions remain effective even when the named skill is not installed globally.
 
 ### Resume a project
 
@@ -39,6 +49,7 @@ Ask the agent to use `$run-hackathon-mvp` and name the project directory. The ag
 | --- | --- |
 | [`AGENTS.md`](./AGENTS.md) | Mandatory protocol for every agent entering this directory |
 | [`docs/architecture.md`](./docs/architecture.md) | System boundary, durable state and evolution path |
+| [`docs/agent-onboarding.md`](./docs/agent-onboarding.md) | Cross-agent startup, tools, plugins, credentials and handoff contract |
 | [`docs/runbook.md`](./docs/runbook.md) | New, resume, verification, deployment and stopping procedures |
 | [`docs/learning-loop.md`](./docs/learning-loop.md) | Turn evidence into reviewed scripts, templates, skills or preferences |
 | [`skills/run-hackathon-mvp/SKILL.md`](./skills/run-hackathon-mvp/SKILL.md) | Reusable judgment for executing a factory run |
@@ -86,6 +97,7 @@ The successful run established the first reusable lessons: test the exact contai
 Implemented:
 
 - project initializer and contract validator;
+- cross-agent entry points for Codex, Claude Code and Cursor plus a capability preflight;
 - resumable handoff templates;
 - factory run skill with conditional Render guidance;
 - Closet Compass local and Render deployment packaging;
