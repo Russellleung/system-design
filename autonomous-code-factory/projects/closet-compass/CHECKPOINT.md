@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-25T18:51:00+08:00
+Updated: 2026-10-25T23:12:41+08:00
 
 ## Working now
 
@@ -14,6 +14,8 @@ Updated: 2026-10-25T18:51:00+08:00
 - Vision analysis is provider-neutral: Gemini is the default and OpenAI remains a configurable fallback.
 - Gemini uses `gemini-3.5-flash-lite`, structured output and server-side semantic validation.
 - The photo-ready UI discloses Gemini free-tier data use before submission.
+- A second `/photo-coach` tab provides technique-only angle, pose, framing and lighting advice.
+- Photo Coach can display, hide and mirror a deterministic dotted SVG pose guide selected from validated templates.
 
 ## In progress
 
@@ -38,6 +40,10 @@ Updated: 2026-10-25T18:51:00+08:00
 | `7efb85f` | Local Docker | `/api/health` and missing-Gemini-key error path | Passed |
 | `7efb85f` | Render | deploy `dep-dbett47b9u1s73auliv0` | Live |
 | `7efb85f` | Render public URL | `/api/health` and `/` smoke test under Node 22 | Passed |
+| `e731f16` | Local Docker / Node 22 | production build, TypeScript, ESLint, `/api/health`, `/` and `/photo-coach` | Passed |
+| `e731f16` | Local Docker | missing-Gemini-key Photo Coach error path | Passed with safe `503` and request reference |
+| `e731f16` | Render | deploy `dep-dbf1o1navr4c73cgmumg` | Live |
+| `e731f16` | Render public URL | `/api/health`, `/` and `/photo-coach` smoke test under Node 22 | Passed |
 
 ## Live resources
 
@@ -47,4 +53,4 @@ Updated: 2026-10-25T18:51:00+08:00
 
 ## Next action
 
-Add `GEMINI_API_KEY` in Render, retry a real wardrobe photo, and inspect the correlated structured log if it fails.
+Add `GEMINI_API_KEY` in Render, test real wardrobe and portrait photos, and inspect the correlated structured log if either fails.

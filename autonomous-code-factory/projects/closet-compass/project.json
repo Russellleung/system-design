@@ -41,6 +41,6 @@
       "APP_URL=http://127.0.0.1:10000 npm run smoke"
     ],
     "healthPath": "/api/health",
-    "publicUrl": null
+    "publicUrl": "https://closet-compass.onrender.com"
   }
 }

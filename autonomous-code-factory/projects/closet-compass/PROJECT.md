@@ -21,7 +21,7 @@ A visitor chooses one of two tabs. Wardrobe analysis inventories visible clothin
 - [x] Restrict Photo Coach to photographic technique rather than appearance or sensitive-trait judgments.
 - [x] Build and run as a portable production container.
 - [x] Pass local health, homepage and Photo Coach smoke tests.
-- [ ] Record and smoke-test the final public Render URL.
+- [x] Record and smoke-test the final public Render URL.
 
 ## Boundaries
 
