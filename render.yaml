@@ -5,7 +5,8 @@ services:
     plan: free
     region: singapore
     rootDir: autonomous-code-factory/apps/wardrobe-advisor
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./autonomous-code-factory/apps/wardrobe-advisor/Dockerfile
+    dockerContext: ./autonomous-code-factory/apps/wardrobe-advisor
     healthCheckPath: /api/health
     autoDeployTrigger: commit
     envVars:
