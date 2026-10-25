@@ -1,7 +1,8 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Camera, Check, ChevronRight, ImagePlus, LoaderCircle, Lock, Plus, RotateCcw, ShoppingBag, Sparkles, X } from "lucide-react";
+import { ArrowRight, Camera, Check, ChevronRight, ImagePlus, LoaderCircle, Plus, RotateCcw, ShoppingBag, Sparkles, X } from "lucide-react";
+import { AppNav } from "@/components/app-nav";
 
 type Garment = { id: string; category: string; colour: string; style: string };
 type Gap = { name: string; reason: string; priority: "High" | "Useful"; query: string };
@@ -77,12 +78,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#f4f0e7] text-[#20251f]">
-      <nav className="border-b border-[#20251f]/10 bg-[#f4f0e7]/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
-          <a href="#top" className="flex items-center gap-2 font-semibold tracking-[-0.02em]"><span className="grid h-9 w-9 place-items-center rounded-full bg-[#2d4a3e] text-[#fffaf0]"><Sparkles size={17}/></span>Closet Compass</a>
-          <span className="flex items-center gap-1.5 text-xs text-[#556157]"><Lock size={13}/> Photo not stored by Closet Compass</span>
-        </div>
-      </nav>
+      <AppNav active="wardrobe" />
 
       <section id="top" className="mx-auto max-w-6xl px-5 pb-14 pt-12 sm:px-8 sm:pt-20">
         <div className="grid items-end gap-9 lg:grid-cols-[1.12fr_.88fr]">

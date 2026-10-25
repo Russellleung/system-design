@@ -1,10 +1,10 @@
 # Closet Compass
 
-Mobile-first wardrobe analysis prototype. Visitors can photograph a wardrobe, review an AI-generated visible inventory, understand the style detected in the image, and open shopping searches for complementary pieces.
+Mobile-first wardrobe and photography coaching prototype. Visitors can photograph a wardrobe, review an AI-generated visible inventory, understand the style detected in the image, and open shopping searches for complementary pieces. The `/photo-coach` tab gives technique-only advice on angle, pose, framing and light, with a deterministic dotted pose guide that can be hidden or mirrored.
 
 Live analysis defaults to Google Gemini and requires a server-side `GEMINI_API_KEY`. Without it, the upload and results experience can be tested through the clearly labelled demo path. Images are sent directly to the selected provider and are not stored by this application. The free Gemini tier may use submissions to improve Google's products; the UI discloses this before use.
 
-Product boundaries: one photo is evidence of visible items rather than a complete wardrobe; users can correct the inventory; the system does not infer protected or sensitive traits; recommendations link to shopping searches rather than claiming live stock or prices.
+Product boundaries: one photo is evidence of visible items rather than a complete wardrobe; users can correct the inventory; the system does not infer protected or sensitive traits or score appearance; Photo Coach changes the suggested camera setup and composition rather than the person; recommendations link to shopping searches rather than claiming live stock or prices.
 
 ## Portable deployment: Render + Supabase
 
@@ -167,7 +167,7 @@ Replace the filename with the pending migration and `DB` with your D1 binding na
 - `npm run build`: build the deployable Sites artifact
 - `npm run build:portable`: build the standalone Next.js artifact used by Docker/Render
 - `npm run start`: preview the built Worker locally with D1/R2 support
-- `npm run smoke`: check the deployed health endpoint and homepage (`APP_URL` defaults to `http://127.0.0.1:10000`)
+- `npm run smoke`: check the deployed health endpoint, homepage and Photo Coach page (`APP_URL` defaults to `http://127.0.0.1:10000`)
 - `npm run db:generate`: generate Drizzle migrations after schema changes
 
 When using the Sites plugin, follow its skill instructions for installation, builds, and publishing. These npm commands remain available for standalone use.

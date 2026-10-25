@@ -3,13 +3,15 @@
   "slug": "closet-compass",
   "name": "Closet Compass",
   "status": "deployed",
-  "demoJourney": "On a phone, photograph a wardrobe, review the visible inventory and style analysis, then open shopping searches for three complementary pieces.",
+  "demoJourney": "On a phone, either photograph a wardrobe to review its visible inventory and gaps, or open Photo Coach to receive angle, pose, framing and lighting suggestions with an optional dotted retake guide.",
   "acceptanceCriteria": [
     "A phone user can capture or select an image under 10 MB.",
     "With a configured vision-provider key, the server returns grounded visible garments, style and exactly three gaps.",
     "Without a configured vision-provider key, the UI offers clearly labelled demo results rather than presenting them as analysis.",
     "The user can correct or remove detected garments before following recommendations.",
-    "The public health endpoint and homepage smoke test pass for the deployed commit."
+    "A user can upload a portrait, receive technique-only coaching and optionally display or mirror a deterministic dotted pose guide.",
+    "Photo Coach does not score appearance or infer sensitive personal traits.",
+    "The public health endpoint, homepage and Photo Coach smoke tests pass for the deployed commit."
   ],
   "budgets": {
     "currency": "USD",

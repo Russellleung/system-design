@@ -24,3 +24,10 @@ await requireResponse("/", async (response) => {
     throw new Error("Homepage did not contain the product name");
   }
 });
+
+await requireResponse("/photo-coach", async (response) => {
+  const body = await response.text();
+  if (!body.includes("Coach the camera")) {
+    throw new Error("Photo Coach page did not contain its primary heading");
+  }
+});

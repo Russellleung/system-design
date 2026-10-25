@@ -46,7 +46,7 @@ export const analysisSchema = {
   },
 } as const;
 
-const outputRules = `Analyse only clothing visible in this wardrobe photograph. Return JSON matching the supplied schema. Use exactly five hexadecimal palette colours, at most 15 visible garment groups, and exactly three wardrobe gaps. Ground every claim in visible clothes. Never infer gender, age, body shape, income, ethnicity, religion, health, or other sensitive traits. Never claim one photo is the user's complete wardrobe. Recommend versatile pieces that do not duplicate visible items.`;
+const wardrobePrompt = `Analyse only clothing visible in this wardrobe photograph. Return JSON matching the supplied schema. Use exactly five hexadecimal palette colours, at most 15 visible garment groups, and exactly three wardrobe gaps. Ground every claim in visible clothes. Never infer gender, age, body shape, income, ethnicity, religion, health, or other sensitive traits. Never claim one photo is the user's complete wardrobe. Recommend versatile pieces that do not duplicate visible items.`;
 
 export type VisionProvider = "gemini" | "openai";
 
@@ -141,7 +141,12 @@ function extractText(
   return undefined;
 }
 
-async function analyseWithGemini(imageBase64: string, mimeType: string): Promise<ProviderResult> {
+async function analyseWithGemini(
+  imageBase64: string,
+  mimeType: string,
+  prompt: string,
+  schema: unknown,
+): Promise<ProviderResult> {
   const provider = "gemini" as const;
   const model = process.env.GEMINI_VISION_MODEL ?? "gemini-3.5-flash-lite";
   const apiKey = process.env.GEMINI_API_KEY;
@@ -166,13 +171,13 @@ async function analyseWithGemini(imageBase64: string, mimeType: string): Promise
       body: JSON.stringify({
         model,
         input: [
-          { type: "text", text: outputRules },
+          { type: "text", text: prompt },
           { type: "image", data: imageBase64, mime_type: mimeType },
         ],
         response_format: {
           type: "text",
           mime_type: "application/json",
-          schema: analysisSchema,
+          schema,
         },
       }),
     });
@@ -192,7 +197,13 @@ async function analyseWithGemini(imageBase64: string, mimeType: string): Promise
   };
 }
 
-async function analyseWithOpenAI(imageBase64: string, mimeType: string): Promise<ProviderResult> {
+async function analyseWithOpenAI(
+  imageBase64: string,
+  mimeType: string,
+  prompt: string,
+  schema: unknown,
+  schemaName: string,
+): Promise<ProviderResult> {
   const provider = "openai" as const;
   const model = process.env.OPENAI_VISION_MODEL ?? "gpt-5.4-mini";
   const apiKey = process.env.OPENAI_API_KEY;
@@ -216,16 +227,16 @@ async function analyseWithOpenAI(imageBase64: string, mimeType: string): Promise
         input: [{
           role: "user",
           content: [
-            { type: "input_text", text: outputRules },
+            { type: "input_text", text: prompt },
             { type: "input_image", image_url: `data:${mimeType};base64,${imageBase64}`, detail: "high" },
           ],
         }],
         text: {
           format: {
             type: "json_schema",
-            name: "wardrobe_analysis",
+            name: schemaName,
             strict: true,
-            schema: analysisSchema,
+            schema,
           },
         },
         max_output_tokens: 1800,
@@ -256,11 +267,27 @@ export function selectedVisionProvider(): VisionProvider {
   });
 }
 
-export async function analyseWardrobeImage(imageBase64: string, mimeType: string) {
+export async function analyseStructuredImage(input: {
+  imageBase64: string;
+  mimeType: string;
+  prompt: string;
+  schema: unknown;
+  schemaName: string;
+}) {
   const provider = selectedVisionProvider();
   return provider === "gemini"
-    ? analyseWithGemini(imageBase64, mimeType)
-    : analyseWithOpenAI(imageBase64, mimeType);
+    ? analyseWithGemini(input.imageBase64, input.mimeType, input.prompt, input.schema)
+    : analyseWithOpenAI(input.imageBase64, input.mimeType, input.prompt, input.schema, input.schemaName);
+}
+
+export async function analyseWardrobeImage(imageBase64: string, mimeType: string) {
+  return analyseStructuredImage({
+    imageBase64,
+    mimeType,
+    prompt: wardrobePrompt,
+    schema: analysisSchema,
+    schemaName: "wardrobe_analysis",
+  });
 }
 
 function isString(value: unknown): value is string {
