@@ -1,0 +1,33 @@
+schemaVersion: 1
+project: closet-compass
+
+deployment:
+  provider: render
+  service: closet-compass
+  healthPath: /api/health
+  smokeCommand: npm run smoke
+
+database:
+  provider: supabase
+  plan: free
+  storesUserPhotos: false
+  migrations: supabase/migrations
+
+costPolicy:
+  currency: USD
+  targetMonthlyPlatformCost: 7
+  hardMonthlyPlatformLimit: 10
+  previewTtlHours: 48
+  requireApprovalForPaidPlan: true
+  requireApprovalForGpu: true
+  requireApprovalForAdditionalDatabaseProject: true
+
+aiPolicy:
+  provider: openai
+  maximumImageBytes: 10485760
+  requireServerSideApiKey: true
+
+cleanupPolicy:
+  deleteExpiredPreviews: true
+  preserveProduction: true
+  reportBillableResourcesAtEndOfRun: true

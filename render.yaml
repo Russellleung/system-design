@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: closet-compass
+    runtime: docker
+    plan: free
+    region: singapore
+    rootDir: autonomous-code-factory/apps/wardrobe-advisor
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
