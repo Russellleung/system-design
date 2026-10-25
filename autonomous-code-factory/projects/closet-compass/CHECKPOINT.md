@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-25T19:15:00+08:00
+Updated: 2026-10-25T18:51:00+08:00
 
 ## Working now
 
@@ -17,7 +17,6 @@ Updated: 2026-10-25T19:15:00+08:00
 
 ## In progress
 
-- Commit and deploy the verified Gemini migration.
 - Add `GEMINI_API_KEY` directly in Render, then test a real wardrobe photo.
 
 ## Blocked or awaiting decisions
@@ -35,8 +34,10 @@ Updated: 2026-10-25T19:15:00+08:00
 | `7cb3e24` | Local Docker / Node 22 | production Docker build and ESLint | Passed |
 | `7cb3e24` | Render | deploy `dep-dbetliu7bikc73bf37vg` | Live |
 | `7cb3e24` | Render public URL | `/api/health` and `/` smoke test under Node 22 | Passed |
-| pending commit | Local Docker / Node 22 | Gemini production build, TypeScript and ESLint | Passed |
-| pending commit | Local Docker | `/api/health` and missing-Gemini-key error path | Passed |
+| `7efb85f` | Local Docker / Node 22 | Gemini production build, TypeScript and ESLint | Passed |
+| `7efb85f` | Local Docker | `/api/health` and missing-Gemini-key error path | Passed |
+| `7efb85f` | Render | deploy `dep-dbett47b9u1s73auliv0` | Live |
+| `7efb85f` | Render public URL | `/api/health` and `/` smoke test under Node 22 | Passed |
 
 ## Live resources
 
@@ -46,4 +47,4 @@ Updated: 2026-10-25T19:15:00+08:00
 
 ## Next action
 
-Deploy the migration, add `GEMINI_API_KEY` in Render, retry a real wardrobe photo, and inspect the correlated structured log if it fails.
+Add `GEMINI_API_KEY` in Render, retry a real wardrobe photo, and inspect the correlated structured log if it fails.
