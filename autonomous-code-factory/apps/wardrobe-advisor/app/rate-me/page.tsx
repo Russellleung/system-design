@@ -10,6 +10,12 @@ const demoRating: DatingPhotoRating = {
   overallScore: 6.2,
   verdict: "The lighting is doing your face no favours, and the stiff pose makes the whole thing feel like an office ID photo. You look perfectly dateable; this particular shot is just leaving points on the table.",
   bestUse: "Supporting photo",
+  firstImpressions: [
+    "Okay, the smile is genuinely warm—that is the first thing making you feel approachable.",
+    "Your hair has shape and volume instead of sitting flat. Keep that.",
+    "That shirt fits cleanly, but the safe colour is not giving anyone a reason to remember it.",
+    "The overhead light is exaggerating skin texture and putting shadows under your eyes.",
+  ],
   dimensions: [
     { name: "Face", score: 6.8, note: "Good raw material, but the flat light and straight-on angle make your features look less defined." },
     { name: "Body & presence", score: 5.5, note: "The outfit is fine; the rigid posture is what drains the presence out of it." },
@@ -111,13 +117,15 @@ export default function RateMePage() {
             </> : <>
               <div className="flex items-end justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d8cfea]">Overall pull</p><p className="mt-3 font-serif text-8xl leading-none">{rating.overallScore.toFixed(1)}</p></div><span className="rounded-full bg-white/15 px-4 py-2 text-sm font-semibold">{rating.bestUse}</span></div>
               <p className="mt-7 text-lg leading-7">{rating.verdict}</p>
-              <div className="mt-7 grid gap-2">{rating.dimensions.map((dimension) => <div key={dimension.name} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl bg-black/10 px-4 py-3"><span className="text-sm">{dimension.name}</span><strong>{dimension.score === 0 ? "N/A" : dimension.score.toFixed(1)}</strong></div>)}</div>
+              <div className="mt-7 grid gap-2">{rating.dimensions.map((dimension) => <div key={dimension.name} className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 rounded-xl bg-black/10 px-4 py-3"><span className="text-sm font-semibold">{dimension.name}</span><strong>{dimension.score === 0 ? "N/A" : dimension.score.toFixed(1)}</strong><p className="col-span-2 text-sm leading-5 text-[#eee9f7]">{dimension.note}</p></div>)}</div>
               <p className="mt-auto pt-7 text-xs leading-5 text-[#d8cfea]">{rating.confidenceNote}</p>
             </>}
           </div>
         </div>}
 
-        {rating && <div className="mt-8 grid gap-5 md:grid-cols-2">
+        {rating && <div className="mt-8 rounded-[1.7rem] border border-[#20251f]/10 bg-[#20251f] p-7 text-white sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#c9d2c8]">What people will notice first</p><div className="mt-5 grid gap-3 sm:grid-cols-2">{rating.firstImpressions.map((item) => <p key={item} className="rounded-2xl bg-white/10 p-4 text-sm leading-6">{item}</p>)}</div></div>}
+
+        {rating && <div className="mt-5 grid gap-5 md:grid-cols-2">
           <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7"><p className="flex items-center gap-2 text-sm font-semibold text-[#2d4a3e]"><Check size={16}/> What genuinely works</p><ul className="mt-5 space-y-3">{rating.strengths.map((item) => <li key={item} className="rounded-xl bg-[#e8ede5] p-4 text-sm leading-6">{item}</li>)}</ul></article>
           <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7"><p className="flex items-center gap-2 text-sm font-semibold text-[#57477d]"><Sparkles size={16}/> The hard truth</p><ul className="mt-5 space-y-3">{rating.improvements.map((item) => <li key={item} className="rounded-xl bg-[#ece7f4] p-4 text-sm leading-6">{item}</li>)}</ul></article>
         </div>}
