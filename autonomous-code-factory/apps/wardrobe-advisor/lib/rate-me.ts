@@ -12,6 +12,13 @@ export type ReferenceSearch = {
   why: string;
 };
 
+export type StyleUpgrade = {
+  category: "Shirt / top" | "Pants / bottoms" | "Colour palette" | "Haircut";
+  recommendation: string;
+  query: string;
+  why: string;
+};
+
 export type DatingPhotoRating = {
   usableAsDatingPhoto: boolean;
   overallScore: number;
@@ -23,6 +30,13 @@ export type DatingPhotoRating = {
   lessAttractiveFeatures: string[];
   likelyLikes: string[];
   likelyDislikes: string[];
+  appearanceProfile: {
+    faceShape: string;
+    bodySilhouette: string;
+    colourDirection: string;
+    hairDirection: string;
+  };
+  styleUpgrades: StyleUpgrade[];
   strengths: string[];
   improvements: string[];
   referenceSearches: ReferenceSearch[];
@@ -32,7 +46,7 @@ export type DatingPhotoRating = {
 const ratingSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["usableAsDatingPhoto", "overallScore", "verdict", "bestUse", "firstImpressions", "dimensions", "attractiveFeatures", "lessAttractiveFeatures", "likelyLikes", "likelyDislikes", "strengths", "improvements", "referenceSearches", "confidenceNote"],
+  required: ["usableAsDatingPhoto", "overallScore", "verdict", "bestUse", "firstImpressions", "dimensions", "attractiveFeatures", "lessAttractiveFeatures", "likelyLikes", "likelyDislikes", "appearanceProfile", "styleUpgrades", "strengths", "improvements", "referenceSearches", "confidenceNote"],
   properties: {
     usableAsDatingPhoto: { type: "boolean" },
     overallScore: { type: "number", minimum: 1, maximum: 10 },
@@ -58,6 +72,33 @@ const ratingSchema = {
     lessAttractiveFeatures: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
     likelyLikes: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
     likelyDislikes: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
+    appearanceProfile: {
+      type: "object",
+      additionalProperties: false,
+      required: ["faceShape", "bodySilhouette", "colourDirection", "hairDirection"],
+      properties: {
+        faceShape: { type: "string" },
+        bodySilhouette: { type: "string" },
+        colourDirection: { type: "string" },
+        hairDirection: { type: "string" },
+      },
+    },
+    styleUpgrades: {
+      type: "array",
+      minItems: 4,
+      maxItems: 4,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["category", "recommendation", "query", "why"],
+        properties: {
+          category: { type: "string", enum: ["Shirt / top", "Pants / bottoms", "Colour palette", "Haircut"] },
+          recommendation: { type: "string" },
+          query: { type: "string" },
+          why: { type: "string" },
+        },
+      },
+    },
     strengths: { type: "array", minItems: 2, maxItems: 3, items: { type: "string" } },
     improvements: { type: "array", minItems: 2, maxItems: 3, items: { type: "string" } },
     referenceSearches: {
@@ -88,6 +129,10 @@ Write firstImpressions as four to six short, natural reactions from an observant
 In attractiveFeatures and lessAttractiveFeatures, directly name the visible facial, body-presentation, grooming and styling features that increase or reduce this photo's appeal. Explain the effect of each feature instead of merely labelling it attractive or unattractive. Do not turn temporary photo problems such as bad light into claims about the person's permanent appearance.
 
 In likelyLikes and likelyDislikes, describe what some adult women browsing a dating profile may respond positively or negatively to in this specific image. Be candid, but never claim that women are a monolith or that any reaction is guaranteed. Focus on observable presentation signals such as warmth, confidence, authenticity, grooming, style, posture, effort and photo context. Do not infer sexual preferences or use stereotypes.
+
+Build appearanceProfile from this photo only. faceShape should give a tentative neutral shape description and explicitly say when the angle or hair makes it uncertain. bodySilhouette should use neutral styling language such as straight silhouette, broader shoulders, longer torso or balanced proportions only when clearly visible; never estimate weight, fitness, health or measurements. colourDirection should name a small practical palette that photographs well with the visible colouring and current lighting, while acknowledging that lighting can alter colour. hairDirection should describe haircut shape, length, texture or volume that could frame the visible face more effectively. If something cannot be judged, say "Not clear from this photo" rather than guessing.
+
+Create exactly four styleUpgrades in this order: Shirt / top, Pants / bottoms, Colour palette, Haircut. Give a concrete recommendation, why it complements what is visible, and a concise generic shopping or image-search query. Include garment cut, useful colours and fabric/formality where relevant. Never recommend changing natural skin colour, body structure or protected traits. The query must not contain identity guesses, protected traits, health terms, exact age, exact weight or demeaning labels.
 
 Create exactly three referenceSearches: one for face/hair/grooming presentation, one for body silhouette/outfit/pose, and one for a photo setting or composition to emulate. Each query must be a concise generic image-search query based only on clearly visible, non-identifying descriptors. It may use neutral face-shape, hairstyle, silhouette, clothing, pose, lighting and setting terms, but must not contain a person's name, a guessed identity, ethnicity, disability, health condition, exact age, exact weight, insulting body label or sexualised phrase. The searches are inspiration, not lookalike identification. Explain exactly what the user should copy from each result set.
 
@@ -130,6 +175,14 @@ export function parseDatingPhotoRating(outputText: string): DatingPhotoRating | 
     || !Array.isArray(item.lessAttractiveFeatures) || item.lessAttractiveFeatures.length < 2 || item.lessAttractiveFeatures.length > 4 || !item.lessAttractiveFeatures.every(isText)
     || !Array.isArray(item.likelyLikes) || item.likelyLikes.length < 2 || item.likelyLikes.length > 4 || !item.likelyLikes.every(isText)
     || !Array.isArray(item.likelyDislikes) || item.likelyDislikes.length < 2 || item.likelyDislikes.length > 4 || !item.likelyDislikes.every(isText)
+    || typeof item.appearanceProfile !== "object" || item.appearanceProfile === null
+    || !["faceShape", "bodySilhouette", "colourDirection", "hairDirection"].every((key) => isText((item.appearanceProfile as Record<string, unknown>)[key]))
+    || !Array.isArray(item.styleUpgrades) || item.styleUpgrades.length !== 4 || !item.styleUpgrades.every((upgrade, index) => {
+      if (typeof upgrade !== "object" || upgrade === null) return false;
+      const row = upgrade as Record<string, unknown>;
+      const categories = ["Shirt / top", "Pants / bottoms", "Colour palette", "Haircut"];
+      return row.category === categories[index] && isText(row.recommendation) && isText(row.query) && isText(row.why);
+    })
     || !Array.isArray(item.strengths) || item.strengths.length < 2 || item.strengths.length > 3 || !item.strengths.every(isText)
     || !Array.isArray(item.improvements) || item.improvements.length < 2 || item.improvements.length > 3 || !item.improvements.every(isText)
     || !Array.isArray(item.referenceSearches) || item.referenceSearches.length !== 3 || !item.referenceSearches.every((search) => {

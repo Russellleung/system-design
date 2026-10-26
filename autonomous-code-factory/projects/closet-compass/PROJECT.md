@@ -24,6 +24,7 @@ A visitor chooses one of four tabs. Wardrobe analysis inventories visible clothi
 - [x] Explain concrete first impressions such as hair, smile, clothing, posture, lighting and visible skin presentation instead of returning only scores or generic praise.
 - [x] Explain visible attractive and less-attractive features plus possible positive and negative reactions from adult women without claiming universal preferences.
 - [x] Generate three non-identifying reference-image searches for grooming, styling/pose and setting; send only search text when the user opens a provider link.
+- [x] Give tentative face-shape, body-silhouette, colour and haircut direction plus searchable shirt, pants, palette and haircut upgrades.
 - [x] Persist Digital Twin entries and optional photos in browser-local IndexedDB.
 - [x] Send only user-authored text, timestamps and photo filenames for reflection synthesis—not stored photo files.
 - [x] Export the provisional Digital Twin reflection and source text as Markdown.
