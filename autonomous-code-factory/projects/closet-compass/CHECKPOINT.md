@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-26T22:13:37+08:00
+Updated: 2026-10-26T22:24:13+08:00
 
 ## Working now
 
@@ -13,7 +13,8 @@ Updated: 2026-10-26T22:13:37+08:00
 - Vision failures now return a safe request reference and log structured provider diagnostics without logging the photo or API key.
 - Vision analysis is provider-neutral: Gemini is the default and OpenAI remains a configurable fallback.
 - Gemini uses `gemini-3.5-flash-lite`, structured output and server-side semantic validation.
-- Rate Me has been rolled back exactly to its last pre-regression implementation from commit `433a31b`. The later per-feature numeric scores and physical-versus-controllable presentation split are intentionally absent.
+- Rate Me's analysis contract remains at the last pre-regression implementation from commit `433a31b`; later per-feature numeric scores and extra model fields remain intentionally absent.
+- Rate Me now groups the stable feature rows into Permanent physical features and Controllable presentation in the UI. This classification is deterministic and does not change the working Gemini prompt, schema, API route or validator.
 - The photo-ready UI discloses Gemini free-tier data use before submission.
 - A second `/photo-coach` tab provides technique-only angle, pose, framing and lighting advice.
 - Photo Coach can display, hide and mirror a deterministic dotted SVG pose guide selected from validated templates.
@@ -26,11 +27,11 @@ Updated: 2026-10-26T22:13:37+08:00
 - Rate Me gives a broad apparent-age range with visible presentation reasons and labels it as how old the adult looks in this photo, not their actual age.
 - A new `/digital-twin` tab stores voluntary thoughts and optional photos in browser-local IndexedDB, sends only written entries and photo filenames for provisional synthesis, and exports Markdown.
 - Navigation and smoke coverage include all four product tabs.
-- Rollback commit `28e9bda` is deployed to the existing Render production service as deploy `dep-dbflv4u7bikc73e2lk6g`.
+- Commit `b7a11b7` is deployed to the existing Render production service as deploy `dep-dbfm3ics728c73dcq8f0`.
 
 ## In progress
 
-- Re-test the rolled-back Rate Me with the consenting adult portrait that previously failed.
+- Review the physical-versus-controllable grouping with the user's real rating result.
 
 ## Blocked or awaiting decisions
 
@@ -100,6 +101,9 @@ Updated: 2026-10-26T22:13:37+08:00
 | `28e9bda` | Local Node 23 / Docker Node 22 | Release preflight, ESLint, production build, image build and all five route smoke tests | Passed |
 | `28e9bda` | Render | deploy `dep-dbflv4u7bikc73e2lk6g` | Live |
 | `28e9bda` | Render public URL and API | All five route smoke tests and fictional illustrated-adult `/api/rate-me` probe | Passed; HTTP 200 with complete rating |
+| `b7a11b7` | Local Node 23 / Docker Node 22 | Release preflight, ESLint, production build, image build and all five route smoke tests | Passed |
+| `b7a11b7` | Render | deploy `dep-dbfm3ics728c73dcq8f0` | Live |
+| `b7a11b7` | Render public URL and API | All five route smoke tests and fictional illustrated-adult `/api/rate-me` probe | Passed; HTTP 200 with unchanged analysis contract |
 
 ## Live resources
 
