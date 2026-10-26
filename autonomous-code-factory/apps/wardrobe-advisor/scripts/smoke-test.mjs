@@ -34,7 +34,7 @@ await requireResponse("/photo-coach", async (response) => {
 
 await requireResponse("/rate-me", async (response) => {
   const body = await response.text();
-  if (!body.includes("Rate the photo")) throw new Error("Rate Me page did not contain its primary heading");
+  if (!body.includes("Fine. Let")) throw new Error("Rate Me page did not contain its primary heading");
 });
 
 await requireResponse("/digital-twin", async (response) => {

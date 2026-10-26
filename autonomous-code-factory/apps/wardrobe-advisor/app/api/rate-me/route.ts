@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const form = await request.formData();
   const image = form.get("image");
   const adultConfirmed = form.get("adultConfirmed") === "true";
-  if (!adultConfirmed) return errorResponse("Confirm that everyone shown is at least 18.", 400, requestId);
+  if (!adultConfirmed) return errorResponse("Confirm that everyone shown is 18+ and consented to appearance feedback.", 400, requestId);
   if (!(image instanceof File) || !supportedImageTypes.has(image.type)) {
     return errorResponse("Please upload a JPEG, PNG, WebP or non-animated GIF image.", 400, requestId);
   }

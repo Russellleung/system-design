@@ -6,7 +6,7 @@ People accumulate clothes without a clear view of their existing style or which 
 
 ## Demo journey
 
-A visitor chooses one of four tabs. Wardrobe analysis inventories visible clothing and suggests three complementary pieces. Photo Coach reviews camera technique and offers an optional dotted retake guide. Rate Me scores dating-profile photo effectiveness without judging physical attractiveness. Digital Twin saves voluntary daily entries locally and exports a provisional Markdown self-reflection.
+A visitor chooses one of four tabs. Wardrobe analysis inventories visible clothing and suggests three complementary pieces. Photo Coach reviews camera technique and offers an optional dotted retake guide. Rate Me gives a consenting adult a deliberately blunt, subjective review of visible face, body presentation, style and dating-profile appeal. Digital Twin saves voluntary daily entries locally and exports a provisional Markdown self-reflection.
 
 ## Acceptance criteria
 
@@ -19,8 +19,8 @@ A visitor chooses one of four tabs. Wardrobe analysis inventories visible clothi
 - [x] Coach a portrait using angle, pose, framing and lighting suggestions.
 - [x] Display, hide and mirror a deterministic dotted pose guide.
 - [x] Restrict Photo Coach to photographic technique rather than appearance or sensitive-trait judgments.
-- [x] Score dating-profile photo effectiveness from 1–10 after explicit 18+ confirmation.
-- [x] Base Rate Me on observable photographic factors rather than physical attractiveness or demographic preferences.
+- [x] Score visible face, body presence, style, photo quality and dating appeal from 1–10 after explicit adult consent.
+- [x] Make Rate Me candid and colloquial without protected-trait inference, sexualisation, humiliation or claims about universal preferences.
 - [x] Persist Digital Twin entries and optional photos in browser-local IndexedDB.
 - [x] Send only user-authored text, timestamps and photo filenames for reflection synthesis—not stored photo files.
 - [x] Export the provisional Digital Twin reflection and source text as Markdown.
@@ -30,7 +30,7 @@ A visitor chooses one of four tabs. Wardrobe analysis inventories visible clothi
 
 ## Boundaries
 
-One photo is not treated as the complete wardrobe. The system does not infer gender, age, body shape, attractiveness, weight, income, ethnicity, religion, health or identity. Photo Coach changes advice about the camera and composition, not the person. Rate Me evaluates the photograph, requires an 18+ confirmation and does not promise matches. Digital Twin stores voluntary entries and photos only in the user's browser; synthesis is provisional and based on authored words rather than appearance. Wardrobe and rating uploads are not persisted by the application. Shopping links are searches, not claims of live stock or price. Supabase remains unprovisioned until cross-device persistence or accounts are accepted scope.
+One photo is not treated as the complete wardrobe or a complete account of a person. Photo Coach does not infer attractiveness or sensitive traits. Rate Me may directly judge a consenting adult's visible face, body presentation, style and dating appeal in that image, but does not infer protected traits, exact weight, health or identity; sexualise the person; recommend dangerous bodily changes; or promise matches. Digital Twin stores voluntary entries and photos only in the user's browser; synthesis is provisional and based on authored words rather than appearance. Wardrobe and rating uploads are not persisted by the application. Shopping links are searches, not claims of live stock or price. Supabase remains unprovisioned until cross-device persistence or accounts are accepted scope.
 
 ## Current stack
 
