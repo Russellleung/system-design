@@ -135,10 +135,10 @@ const ratingSchema = {
         },
       },
     },
-    attractiveFeatures: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
-    lessAttractiveFeatures: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
-    likelyLikes: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
-    likelyDislikes: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
+    attractiveFeatures: { type: "array", minItems: 1, maxItems: 4, items: { type: "string" } },
+    lessAttractiveFeatures: { type: "array", minItems: 1, maxItems: 4, items: { type: "string" } },
+    likelyLikes: { type: "array", minItems: 1, maxItems: 4, items: { type: "string" } },
+    likelyDislikes: { type: "array", minItems: 1, maxItems: 4, items: { type: "string" } },
     appearanceProfile: {
       type: "object",
       additionalProperties: false,
@@ -336,10 +336,10 @@ export function parseDatingPhotoRating(outputText: string): DatingPhotoRating | 
     })
     || !validFeatureList(item.facialFeatures, [...facialFeatureNames])
     || !validFeatureList(item.bodyFeatures, [...bodyFeatureNames])
-    || !Array.isArray(item.attractiveFeatures) || item.attractiveFeatures.length < 2 || item.attractiveFeatures.length > 4 || !item.attractiveFeatures.every(isText)
-    || !Array.isArray(item.lessAttractiveFeatures) || item.lessAttractiveFeatures.length < 2 || item.lessAttractiveFeatures.length > 4 || !item.lessAttractiveFeatures.every(isText)
-    || !Array.isArray(item.likelyLikes) || item.likelyLikes.length < 2 || item.likelyLikes.length > 4 || !item.likelyLikes.every(isText)
-    || !Array.isArray(item.likelyDislikes) || item.likelyDislikes.length < 2 || item.likelyDislikes.length > 4 || !item.likelyDislikes.every(isText)
+    || !Array.isArray(item.attractiveFeatures) || item.attractiveFeatures.length < 1 || item.attractiveFeatures.length > 4 || !item.attractiveFeatures.every(isText)
+    || !Array.isArray(item.lessAttractiveFeatures) || item.lessAttractiveFeatures.length < 1 || item.lessAttractiveFeatures.length > 4 || !item.lessAttractiveFeatures.every(isText)
+    || !Array.isArray(item.likelyLikes) || item.likelyLikes.length < 1 || item.likelyLikes.length > 4 || !item.likelyLikes.every(isText)
+    || !Array.isArray(item.likelyDislikes) || item.likelyDislikes.length < 1 || item.likelyDislikes.length > 4 || !item.likelyDislikes.every(isText)
     || typeof item.appearanceProfile !== "object" || item.appearanceProfile === null
     || !["faceShape", "bodySilhouette", "colourDirection", "hairDirection"].every((key) => isText((item.appearanceProfile as Record<string, unknown>)[key]))
     || !Array.isArray(item.styleUpgrades) || item.styleUpgrades.length !== 4 || !item.styleUpgrades.every((upgrade, index) => {
