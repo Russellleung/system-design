@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { analyseDatingPhoto, parseDatingPhotoRating, ratingValidationDiagnostics } from "@/lib/rate-me";
+import { analyseDatingPhoto, parseDatingPhotoRating } from "@/lib/rate-me";
 import { VisionProviderError } from "@/lib/vision-analysis";
 
 export const runtime = "nodejs";
@@ -25,15 +25,7 @@ export async function POST(request: Request) {
     const result = await analyseDatingPhoto(Buffer.from(await image.arrayBuffer()).toString("base64"), image.type);
     if (!result.outputText) return errorResponse("No rating was returned. Please try again.", 502, requestId);
     const analysis = parseDatingPhotoRating(result.outputText);
-    if (!analysis) {
-      console.error(JSON.stringify({
-        event: "dating_photo_validation_error",
-        requestId,
-        providerRequestId: result.providerRequestId,
-        ...ratingValidationDiagnostics(result.outputText),
-      }));
-      return errorResponse("The rating was incomplete. Please retry.", 502, requestId);
-    }
+    if (!analysis) return errorResponse("The rating was incomplete. Please retry.", 502, requestId);
     return NextResponse.json(analysis, { headers: { "X-Request-ID": requestId } });
   } catch (error) {
     if (error instanceof VisionProviderError) {

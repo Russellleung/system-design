@@ -55,28 +55,6 @@ type ProviderResult = {
   providerRequestId?: string | null;
 };
 
-function relaxSchemaForGemini(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(relaxSchemaForGemini);
-  if (typeof value !== "object" || value === null) return value;
-
-  const schema = value as Record<string, unknown>;
-  const relaxed: Record<string, unknown> = {};
-
-  if (typeof schema.type === "string") relaxed.type = schema.type;
-  if (Array.isArray(schema.required)) relaxed.required = schema.required;
-  if (typeof schema.properties === "object" && schema.properties !== null) {
-    relaxed.properties = Object.fromEntries(
-      Object.entries(schema.properties as Record<string, unknown>).map(([name, propertySchema]) => [
-        name,
-        relaxSchemaForGemini(propertySchema),
-      ]),
-    );
-  }
-  if ("items" in schema) relaxed.items = relaxSchemaForGemini(schema.items);
-
-  return relaxed;
-}
-
 export class VisionProviderError extends Error {
   constructor(
     message: string,
@@ -343,11 +321,8 @@ export async function analyseStructuredImage(input: {
   schemaName: string;
 }) {
   const provider = selectedVisionProvider();
-  const geminiSchema = input.schemaName === "dating_photo_rating"
-    ? relaxSchemaForGemini(input.schema)
-    : input.schema;
   return provider === "gemini"
-    ? analyseWithGemini(input.imageBase64, input.mimeType, input.prompt, geminiSchema)
+    ? analyseWithGemini(input.imageBase64, input.mimeType, input.prompt, input.schema)
     : analyseWithOpenAI(input.imageBase64, input.mimeType, input.prompt, input.schema, input.schemaName);
 }
 
