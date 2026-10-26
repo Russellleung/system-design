@@ -25,20 +25,20 @@ const demoRating: DatingPhotoRating = {
     { name: "Dating appeal", score: 6.2, note: "Not a disaster, not a lead photo, and definitely replaceable with one better afternoon." },
   ],
   facialFeatures: [
-    { feature: "Facial balance", observation: "The features read fairly balanced head-on, though the flat angle makes the two sides look more identical than a three-quarter view would.", photoEffect: "The balance is easy on the eye, but the straight-on framing also makes the face less dimensional." },
-    { feature: "Eyes & brows", observation: "The eyes look slightly narrowed in this light and the brows have a clean natural shape.", photoEffect: "The brows frame the face well; the squint makes the expression look more guarded than warm." },
-    { feature: "Nose & midface", observation: "The nose sits proportionately through the centre of the face, but the overhead light creates a hard shadow beneath it.", photoEffect: "The central balance helps; the shadow makes the midface look harsher than it needs to." },
-    { feature: "Mouth & smile", observation: "The smile is open and reaches beyond just the mouth.", photoEffect: "This is the strongest facial feature in the shot because it creates warmth immediately." },
-    { feature: "Jaw, chin & face shape", observation: "The jaw reads softly rectangular, though the front-facing lens flattens its definition.", photoEffect: "A slight turn would give the jaw more structure and make the face look less passport-like." },
-    { feature: "Ears", observation: "The ears are visible but do not dominate the face from this angle.", photoEffect: "They neither add nor subtract much; a closer crop would keep attention on the expression." },
-    { feature: "Skin presentation", observation: "The overhead light is emphasising normal texture and a little shine.", photoEffect: "Softer window light would make the skin look more even without filtering it." },
-    { feature: "Hair & grooming", observation: "The hair has useful volume and texture on top, with slightly bulky sides.", photoEffect: "The volume is attractive; tidier sides would frame the face more cleanly." },
+    { feature: "Facial balance", observation: "Your features look fairly even head-on, although this flat angle hides most of the natural contour.", appeal: "Attractive", friendTake: "Yes, I like the balance. Your face is easy on the eye; the boring straight-on angle is the problem, not your structure." },
+    { feature: "Eyes & brows", observation: "Your eyes look slightly narrowed while the brows are naturally full and tidy.", appeal: "Mixed", friendTake: "The brows are good—keep them. The squint is not cute, though; it makes you look guarded when the smile says the opposite." },
+    { feature: "Nose & midface", observation: "Your nose reads straight and proportional, with a hard overhead shadow beneath it.", appeal: "Attractive", friendTake: "Honestly, the nose suits your face. I like it. The ugly bit is that restaurant shadow making the middle of your face look harsher than it is." },
+    { feature: "Mouth & smile", observation: "You have a broad, genuine smile that shows the upper teeth and reaches the cheeks.", appeal: "Attractive", friendTake: "This is your winner. The smile is properly cute and makes you look fun immediately—it is carrying the photo." },
+    { feature: "Jaw, chin & face shape", observation: "The jaw looks softly rectangular, but the front-facing lens and forward posture flatten its edges.", appeal: "Mixed", friendTake: "Not ugly, just underwhelming here. You do have shape, but this angle turns it soft and passport-like. Turn slightly and give the jaw a chance." },
+    { feature: "Ears", observation: "Your ears are clearly visible because the hair is shorter at the sides.", appeal: "Mixed", friendTake: "They stick out a little. I do notice them, but they are not a deal-breaker; the short sides simply put them on display more than necessary." },
+    { feature: "Skin presentation", observation: "The overhead light picks up shine and visible texture across the face.", appeal: "Unattractive", friendTake: "I don't like how the skin photographs here. The shine and texture grab attention, but I blame this brutal lighting more than your actual skin." },
+    { feature: "Hair & grooming", observation: "There is useful texture on top, but the heavy fringe sits flat across the forehead and the sides look bulky.", appeal: "Mixed", friendTake: "The dark textured hair is attractive; the heavy fringe is not. It crowds your face and makes the whole cut look flatter and more boyish than it needs to." },
   ],
   bodyFeatures: [
-    { feature: "Shoulders & posture", observation: "The shoulders are held square and slightly tense.", photoEffect: "That stiffness reduces confidence and makes the pose feel formal." },
-    { feature: "Torso & proportions", observation: "The straight-on shirt creates a fairly uniform torso line.", photoEffect: "A small body turn would create more shape and visual energy." },
-    { feature: "Overall silhouette", observation: "The silhouette is clean but static, with both sides presented almost identically.", photoEffect: "An asymmetrical stance would look more relaxed and intentional." },
-    { feature: "Clothing fit", observation: "The shirt fits cleanly without obvious pulling or excess fabric.", photoEffect: "The fit works; stronger colour or texture would make it more memorable." },
+    { feature: "Shoulders & posture", observation: "The shoulders are square but held a little tensely.", appeal: "Unattractive", friendTake: "This posture is stiff and awkward. Relax your shoulders—right now you look like someone told you to sit still for an employee badge." },
+    { feature: "Torso & proportions", observation: "The straight-on shirt creates one uniform line through the torso.", appeal: "Mixed", friendTake: "Nothing bad is happening, but nothing hot is happening either. A small body turn would give you shape instead of this flat rectangle." },
+    { feature: "Overall silhouette", observation: "Both sides of the body are presented almost identically in a static pose.", appeal: "Unattractive", friendTake: "Too rigid. The silhouette looks dull because there is no movement or confident asymmetry—not because your body is unattractive." },
+    { feature: "Clothing fit", observation: "The shirt sits cleanly without obvious pulling or excess fabric.", appeal: "Attractive", friendTake: "The fit is good and I like that it looks neat. The colour is safe to the point of forgettable, but at least the shirt itself is doing its job." },
   ],
   attractiveFeatures: ["The open smile softens the whole face and makes you look easy to talk to", "Your hair has enough volume to frame your face instead of disappearing into the background"],
   lessAttractiveFeatures: ["The overhead shadow makes the eye area look more tired than it probably does in person", "The rigid shoulders flatten your presence and make the pose feel guarded"],
@@ -155,6 +155,13 @@ export default function RateMePage() {
     return `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(query)}`;
   }
 
+  function appealClass(appeal: DatingPhotoRating["facialFeatures"][number]["appeal"]) {
+    if (appeal === "Attractive") return "bg-[#dcebdd] text-[#23452f]";
+    if (appeal === "Unattractive") return "bg-[#ead7df] text-[#6b2945]";
+    if (appeal === "Mixed") return "bg-[#eee1bd] text-[#654d12]";
+    return "bg-[#e4e4e1] text-[#555951]";
+  }
+
   return <main className="min-h-screen bg-[#f4f0e7] text-[#20251f]">
     <AppNav active="rate-me" />
     {cropSourceFile && cropSourcePreview && <PhotoCropper sourceFile={cropSourceFile} sourceUrl={cropSourcePreview} onApply={applyCrop} onCancel={cancelCrop}/>}
@@ -202,9 +209,9 @@ export default function RateMePage() {
 
         {rating && <div className="mt-8 rounded-[1.7rem] border border-[#20251f]/10 bg-[#20251f] p-7 text-white sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#c9d2c8]">What people will notice first</p><div className="mt-5 grid gap-3 sm:grid-cols-2">{rating.firstImpressions.map((item) => <p key={item} className="rounded-2xl bg-white/10 p-4 text-sm leading-6">{item}</p>)}</div></div>}
 
-        {rating && <section className="mt-5 rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7 sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#57477d]">Face, feature by feature</p><h2 className="mt-3 font-serif text-4xl tracking-[-0.04em]">What is actually visible.</h2><div className="mt-6 grid gap-4 sm:grid-cols-2">{rating.facialFeatures.map((item) => <article key={item.feature} className="rounded-2xl bg-[#f4f0e7] p-5"><h3 className="font-semibold">{item.feature}</h3><p className="mt-3 text-sm leading-6">{item.observation}</p><p className="mt-3 border-l-2 border-[#57477d] pl-3 text-sm leading-6 text-[#625b67]">{item.photoEffect}</p></article>)}</div></section>}
+        {rating && <section className="mt-5 rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7 sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#57477d]">Face, feature by feature</p><h2 className="mt-3 font-serif text-4xl tracking-[-0.04em]">Here’s my actual opinion.</h2><div className="mt-6 grid gap-4 sm:grid-cols-2">{rating.facialFeatures.map((item) => <article key={item.feature} className="rounded-2xl bg-[#f4f0e7] p-5"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{item.feature}</h3><span className={`rounded-full px-3 py-1 text-xs font-bold ${appealClass(item.appeal)}`}>{item.appeal}</span></div><p className="mt-3 text-sm leading-6 text-[#625b67]">{item.observation}</p><p className="mt-4 border-l-2 border-[#57477d] pl-3 font-semibold leading-6">{item.friendTake}</p></article>)}</div></section>}
 
-        {rating && <section className="mt-5 rounded-[1.7rem] border border-[#20251f]/10 bg-[#e8ede5] p-7 sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#2d4a3e]">Body and presence, feature by feature</p><div className="mt-5 grid gap-4 sm:grid-cols-2">{rating.bodyFeatures.map((item) => <article key={item.feature} className="rounded-2xl bg-white/70 p-5"><h3 className="font-semibold">{item.feature}</h3><p className="mt-3 text-sm leading-6">{item.observation}</p><p className="mt-3 border-l-2 border-[#2d4a3e] pl-3 text-sm leading-6 text-[#556157]">{item.photoEffect}</p></article>)}</div></section>}
+        {rating && <section className="mt-5 rounded-[1.7rem] border border-[#20251f]/10 bg-[#e8ede5] p-7 sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#2d4a3e]">Body and presence, feature by feature</p><div className="mt-5 grid gap-4 sm:grid-cols-2">{rating.bodyFeatures.map((item) => <article key={item.feature} className="rounded-2xl bg-white/70 p-5"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{item.feature}</h3><span className={`rounded-full px-3 py-1 text-xs font-bold ${appealClass(item.appeal)}`}>{item.appeal}</span></div><p className="mt-3 text-sm leading-6 text-[#556157]">{item.observation}</p><p className="mt-4 border-l-2 border-[#2d4a3e] pl-3 font-semibold leading-6">{item.friendTake}</p></article>)}</div></section>}
 
         {rating && <div className="mt-5 grid gap-5 md:grid-cols-2">
           <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7"><p className="flex items-center gap-2 text-sm font-semibold text-[#2d4a3e]"><Check size={16}/> What genuinely works</p><ul className="mt-5 space-y-3">{rating.strengths.map((item) => <li key={item} className="rounded-xl bg-[#e8ede5] p-4 text-sm leading-6">{item}</li>)}</ul></article>

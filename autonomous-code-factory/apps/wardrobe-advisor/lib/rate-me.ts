@@ -22,7 +22,8 @@ export type StyleUpgrade = {
 export type AppearanceFeature = {
   feature: string;
   observation: string;
-  photoEffect: string;
+  appeal: "Attractive" | "Mixed" | "Unattractive" | "Not judgeable";
+  friendTake: string;
 };
 
 export type DatingPhotoRating = {
@@ -83,11 +84,12 @@ const ratingSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["feature", "observation", "photoEffect"],
+        required: ["feature", "observation", "appeal", "friendTake"],
         properties: {
           feature: { type: "string", enum: ["Facial balance", "Eyes & brows", "Nose & midface", "Mouth & smile", "Jaw, chin & face shape", "Ears", "Skin presentation", "Hair & grooming"] },
           observation: { type: "string" },
-          photoEffect: { type: "string" },
+          appeal: { type: "string", enum: ["Attractive", "Mixed", "Unattractive", "Not judgeable"] },
+          friendTake: { type: "string" },
         },
       },
     },
@@ -98,11 +100,12 @@ const ratingSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["feature", "observation", "photoEffect"],
+        required: ["feature", "observation", "appeal", "friendTake"],
         properties: {
           feature: { type: "string", enum: ["Shoulders & posture", "Torso & proportions", "Overall silhouette", "Clothing fit"] },
           observation: { type: "string" },
-          photoEffect: { type: "string" },
+          appeal: { type: "string", enum: ["Attractive", "Mixed", "Unattractive", "Not judgeable"] },
+          friendTake: { type: "string" },
         },
       },
     },
@@ -164,9 +167,15 @@ Be unsparing, specific, colloquial and useful. Lead the verdict with the most im
 
 Write firstImpressions as four to six short, natural reactions from an observant friend. Each reaction must name a concrete visible detail and its effect. Mix genuine enthusiasm and criticism when the image supports both. Good specificity sounds like: "Okay, that smile is warm—you look instantly approachable," "That shirt colour really works with the rest of the shot," or "The harsh light is exaggerating every bit of skin texture." Do not reuse those examples unless they are genuinely visible. Avoid vague filler such as "nice photo," "you look good," "improve grooming," or "great style." If hair, smile, eyes, facial hair, accessories, a particular garment, posture, skin texture, shine, flaking or a visible blemish stands out, say so plainly. Describe only visible appearance; do not diagnose a skin condition. Suggest only low-risk, reversible photo preparation, and never advise squeezing, picking or popping a blemish.
 
-Create facialFeatures in this exact order: Facial balance, Eyes & brows, Nose & midface, Mouth & smile, Jaw, chin & face shape, Ears, Skin presentation, Hair & grooming. For each, observation must describe the concrete visible feature and photoEffect must say whether and how it helps or hurts this particular image. Direct descriptions such as visibly balanced or asymmetric presentation, prominent or close-set ears, narrow-looking or squinting eyes, sparse or strong brows, a broad or narrow nose, thin or full lips, a soft or defined jaw, visible skin texture, and flat or voluminous hair are allowed when genuinely visible. Never fabricate measurements or pretend one photo proves permanent anatomical symmetry. Explicitly distinguish natural-looking structure from effects caused by expression, lens distortion, head angle, shadows, hair coverage or low resolution. If a feature is obscured, say "Not clear from this photo" in both fields instead of guessing.
+Create facialFeatures in this exact order: Facial balance, Eyes & brows, Nose & midface, Mouth & smile, Jaw, chin & face shape, Ears, Skin presentation, Hair & grooming. Every item has four jobs:
+1. observation: briefly describe the concrete visible feature without euphemism.
+2. appeal: choose exactly Attractive, Mixed, Unattractive or Not judgeable. Do not retreat to Mixed just to sound polite.
+3. friendTake: give an unmistakable, opinionated attraction verdict in natural spoken language. Say what you personally like or dislike, whether it looks pretty, handsome, cute, hot, plain, awkward, unattractive or unflattering in this image, and why.
+4. Separate the person's visible structure from what the expression, lens, angle, shadow, hair coverage or resolution may be doing to it.
 
-Create bodyFeatures in this exact order: Shoulders & posture, Torso & proportions, Overall silhouette, Clothing fit. Use neutral concrete visual descriptions. Explain whether pose, lens, loose clothing or cropping limits the judgment. Do not estimate weight, body-fat percentage, health, fitness or measurements.
+Sound like an extroverted friend talking across a table, not a clinician writing a report. Avoid sterile filler such as "presents well", "appears harmonious", "moderately dense", "moderate width", "projects openness" or "frames the face naturally" unless you immediately give a clear human opinion. Strong phrasing is welcome when grounded, for example: "That smile is cute as hell; it is carrying this photo", "Those ears stick out a little with the sides cut this short—not ugly, but this haircut puts them on display", "The squint is doing you no favours; it makes your eyes look smaller and less warm", or "That fringe is too heavy. I don't like it—it crowds your face." Do not reuse an example unless the image actually supports it. Direct descriptions such as visibly balanced or asymmetric presentation, prominent ears, narrow-looking or squinting eyes, sparse or strong brows, a broad or narrow-looking nose, thin or full-looking lips, a soft or defined jaw, visible skin texture, and flat or voluminous hair are allowed when genuinely visible. Never fabricate measurements or pretend one photo proves permanent anatomical symmetry. If a feature is obscured, use appeal Not judgeable and say "Not clear from this photo" in both text fields instead of guessing.
+
+Create bodyFeatures in this exact order: Shoulders & posture, Torso & proportions, Overall silhouette, Clothing fit. Use the same observation, appeal and friendTake rules. Be direct about whether the presentation looks attractive, awkward or unflattering, but explain when pose, lens, loose clothing or cropping limits the judgment. Do not estimate weight, body-fat percentage, health, fitness or measurements.
 
 In attractiveFeatures and lessAttractiveFeatures, directly name the visible facial, body-presentation, grooming and styling features that increase or reduce this photo's appeal. Explain the effect of each feature instead of merely labelling it attractive or unattractive. Do not turn temporary photo problems such as bad light into claims about the person's permanent appearance.
 
@@ -242,6 +251,9 @@ function validFeatureList(value: unknown, names: string[]) {
   return Array.isArray(value) && value.length === names.length && value.every((feature, index) => {
     if (typeof feature !== "object" || feature === null) return false;
     const row = feature as Record<string, unknown>;
-    return row.feature === names[index] && isText(row.observation) && isText(row.photoEffect);
+    return row.feature === names[index]
+      && isText(row.observation)
+      && ["Attractive", "Mixed", "Unattractive", "Not judgeable"].includes(row.appeal as string)
+      && isText(row.friendTake);
   });
 }
