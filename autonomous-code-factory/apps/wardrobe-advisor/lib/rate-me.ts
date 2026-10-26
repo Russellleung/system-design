@@ -239,12 +239,83 @@ function isText(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+const dimensionNames = ["Face", "Body & presence", "Style", "Photo quality", "Dating appeal"] as const;
+const facialFeatureNames = ["Facial balance", "Eyes & brows", "Nose & midface", "Mouth & lips", "Jaw, chin & face shape", "Ears", "Skin appearance", "Hair & grooming", "Facial expression & tension"] as const;
+const bodyFeatureNames = ["Shoulder structure", "Torso & proportions", "Overall silhouette", "Posture & body pose", "Clothing fit"] as const;
+const styleUpgradeNames = ["Shirt / top", "Pants / bottoms", "Colour palette", "Haircut"] as const;
+
+function orderRows(value: unknown, key: string, names: readonly string[]) {
+  if (!Array.isArray(value)) return value;
+  const rows = value.filter((row): row is Record<string, unknown> => typeof row === "object" && row !== null);
+  const byName = new Map(rows.map((row) => [row[key], row]));
+  return names.flatMap((name) => byName.has(name) ? [byName.get(name)] : []);
+}
+
+function normaliseFeatureRows(value: unknown, names: readonly string[]) {
+  const ordered = orderRows(value, "feature", names);
+  if (!Array.isArray(ordered)) return ordered;
+  return ordered.map((row, index) => {
+    if (typeof row !== "object" || row === null) return row;
+    const record = row as Record<string, unknown>;
+    const score = record.score;
+    const expectedKind = ["Hair & grooming", "Facial expression & tension", "Posture & body pose", "Clothing fit"].includes(names[index])
+      ? "Controllable presentation"
+      : "Physical feature";
+    const appeal = typeof score !== "number"
+      ? record.appeal
+      : score === 0 ? "Not judgeable"
+        : score < 4.5 ? "Unattractive"
+          : score < 6.5 ? "Mixed"
+            : "Attractive";
+    return { ...record, kind: expectedKind, appeal };
+  });
+}
+
+function trimTextList(value: unknown, maximum: number) {
+  return Array.isArray(value) ? value.slice(0, maximum) : value;
+}
+
+function normaliseRating(item: Record<string, unknown>) {
+  item.dimensions = orderRows(item.dimensions, "name", dimensionNames);
+  item.facialFeatures = normaliseFeatureRows(item.facialFeatures, facialFeatureNames);
+  item.bodyFeatures = normaliseFeatureRows(item.bodyFeatures, bodyFeatureNames);
+  item.styleUpgrades = orderRows(item.styleUpgrades, "category", styleUpgradeNames);
+  item.firstImpressions = trimTextList(item.firstImpressions, 6);
+  item.attractiveFeatures = trimTextList(item.attractiveFeatures, 4);
+  item.lessAttractiveFeatures = trimTextList(item.lessAttractiveFeatures, 4);
+  item.likelyLikes = trimTextList(item.likelyLikes, 4);
+  item.likelyDislikes = trimTextList(item.likelyDislikes, 4);
+  item.strengths = trimTextList(item.strengths, 3);
+  item.improvements = trimTextList(item.improvements, 3);
+  item.referenceSearches = Array.isArray(item.referenceSearches) ? item.referenceSearches.slice(0, 3) : item.referenceSearches;
+  return item;
+}
+
+export function ratingValidationDiagnostics(outputText: string) {
+  let value: unknown;
+  try { value = JSON.parse(outputText); } catch { return { outputLength: outputText.length, shape: "invalid_json" }; }
+  if (typeof value !== "object" || value === null) return { outputLength: outputText.length, shape: typeof value };
+  const item = value as Record<string, unknown>;
+  const list = (key: string) => Array.isArray(item[key]) ? item[key].length : null;
+  const names = (key: string, field: string) => Array.isArray(item[key])
+    ? item[key].map((row) => typeof row === "object" && row !== null ? (row as Record<string, unknown>)[field] : null)
+    : null;
+  return {
+    outputLength: outputText.length,
+    responseKeys: Object.keys(item).sort(),
+    listLengths: Object.fromEntries(["firstImpressions", "dimensions", "facialFeatures", "bodyFeatures", "attractiveFeatures", "lessAttractiveFeatures", "likelyLikes", "likelyDislikes", "styleUpgrades", "strengths", "improvements", "referenceSearches"].map((key) => [key, list(key)])),
+    dimensionNames: names("dimensions", "name"),
+    facialFeatureNames: names("facialFeatures", "feature"),
+    bodyFeatureNames: names("bodyFeatures", "feature"),
+    styleUpgradeNames: names("styleUpgrades", "category"),
+  };
+}
+
 export function parseDatingPhotoRating(outputText: string): DatingPhotoRating | null {
   let value: unknown;
   try { value = JSON.parse(outputText); } catch { return null; }
   if (typeof value !== "object" || value === null) return null;
-  const item = value as Record<string, unknown>;
-  const names = ["Face", "Body & presence", "Style", "Photo quality", "Dating appeal"];
+  const item = normaliseRating(value as Record<string, unknown>);
   if (typeof item.usableAsDatingPhoto !== "boolean"
     || typeof item.overallScore !== "number" || item.overallScore < 1 || item.overallScore > 10
     || typeof item.attractivenessScore !== "number" || item.attractivenessScore < 0 || item.attractivenessScore > 10
@@ -259,12 +330,12 @@ export function parseDatingPhotoRating(outputText: string): DatingPhotoRating | 
     || !item.dimensions.every((dimension, index) => {
       if (typeof dimension !== "object" || dimension === null) return false;
       const row = dimension as Record<string, unknown>;
-      return row.name === names[index]
+      return row.name === dimensionNames[index]
         && typeof row.score === "number" && row.score >= 0 && row.score <= 10
         && isText(row.note);
     })
-    || !validFeatureList(item.facialFeatures, ["Facial balance", "Eyes & brows", "Nose & midface", "Mouth & lips", "Jaw, chin & face shape", "Ears", "Skin appearance", "Hair & grooming", "Facial expression & tension"])
-    || !validFeatureList(item.bodyFeatures, ["Shoulder structure", "Torso & proportions", "Overall silhouette", "Posture & body pose", "Clothing fit"])
+    || !validFeatureList(item.facialFeatures, [...facialFeatureNames])
+    || !validFeatureList(item.bodyFeatures, [...bodyFeatureNames])
     || !Array.isArray(item.attractiveFeatures) || item.attractiveFeatures.length < 2 || item.attractiveFeatures.length > 4 || !item.attractiveFeatures.every(isText)
     || !Array.isArray(item.lessAttractiveFeatures) || item.lessAttractiveFeatures.length < 2 || item.lessAttractiveFeatures.length > 4 || !item.lessAttractiveFeatures.every(isText)
     || !Array.isArray(item.likelyLikes) || item.likelyLikes.length < 2 || item.likelyLikes.length > 4 || !item.likelyLikes.every(isText)
@@ -274,8 +345,7 @@ export function parseDatingPhotoRating(outputText: string): DatingPhotoRating | 
     || !Array.isArray(item.styleUpgrades) || item.styleUpgrades.length !== 4 || !item.styleUpgrades.every((upgrade, index) => {
       if (typeof upgrade !== "object" || upgrade === null) return false;
       const row = upgrade as Record<string, unknown>;
-      const categories = ["Shirt / top", "Pants / bottoms", "Colour palette", "Haircut"];
-      return row.category === categories[index] && isText(row.recommendation) && isText(row.query) && isText(row.why);
+      return row.category === styleUpgradeNames[index] && isText(row.recommendation) && isText(row.query) && isText(row.why);
     })
     || !Array.isArray(item.strengths) || item.strengths.length < 2 || item.strengths.length > 3 || !item.strengths.every(isText)
     || !Array.isArray(item.improvements) || item.improvements.length < 2 || item.improvements.length > 3 || !item.improvements.every(isText)
