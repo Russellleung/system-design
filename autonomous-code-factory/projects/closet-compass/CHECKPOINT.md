@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-26T09:30:18+08:00
+Updated: 2026-10-26T09:35:00+08:00
 
 ## Working now
 
@@ -19,11 +19,11 @@ Updated: 2026-10-26T09:30:18+08:00
 - A new `/rate-me` tab scores dating-profile photo effectiveness from 1–10 across observable presentation factors after an explicit 18+ confirmation; it does not score physical attractiveness.
 - A new `/digital-twin` tab stores voluntary thoughts and optional photos in browser-local IndexedDB, sends only written entries and photo filenames for provisional synthesis, and exports Markdown.
 - Navigation and smoke coverage include all four product tabs.
+- Commit `b971708` is deployed to the existing Render production service as deploy `dep-dbfas3e7bikc73cqvl8g`.
 
 ## In progress
 
 - Add `GEMINI_API_KEY` directly in Render, then test a real wardrobe photo.
-- The Rate Me and Digital Twin changes are verified locally but not deployed; production deployment requires explicit authority under the project contract.
 
 ## Blocked or awaiting decisions
 
@@ -51,6 +51,9 @@ Updated: 2026-10-26T09:30:18+08:00
 | `e731f16` | Render public URL | `/api/health`, `/` and `/photo-coach` smoke test under Node 22 | Passed |
 | working tree 2026-10-26 | Local Node 23 | ESLint and portable Next.js production build | Passed |
 | working tree 2026-10-26 | Local Docker / Node 22 | Production image build; `/api/health`, `/`, `/photo-coach`, `/rate-me` and `/digital-twin` smoke tests | Passed |
+| `b971708` | Render | deploy `dep-dbfas3e7bikc73cqvl8g` | Live |
+| `b971708` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me` and `/digital-twin` smoke tests | Passed |
+| `b971708` | Render public API | Synthetic, non-personal `/api/digital-twin` synthesis through configured Gemini provider | Passed with validated structured response |
 
 ## Live resources
 
@@ -60,4 +63,4 @@ Updated: 2026-10-26T09:30:18+08:00
 
 ## Next action
 
-Review Rate Me and Digital Twin locally. If accepted, authorize a production deployment, then test a real rating and reflection with `GEMINI_API_KEY` configured and verify the mobile IndexedDB journey manually.
+On a real phone, verify Rate Me with an adult-owned test portrait and verify that Digital Twin entries persist after refresh, export a valid Markdown file and disappear after Clear all.
