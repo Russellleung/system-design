@@ -6,6 +6,29 @@ import { AppNav } from "@/components/app-nav";
 import { PhotoCropper } from "@/components/photo-cropper";
 import type { DatingPhotoRating } from "@/lib/rate-me";
 
+type AppearanceFeature = DatingPhotoRating["facialFeatures"][number];
+
+const physicalFeatureNames = new Set([
+  "Facial balance",
+  "Eyes & brows",
+  "Nose & midface",
+  "Jaw, chin & face shape",
+  "Ears",
+  "Torso & proportions",
+  "Overall silhouette",
+]);
+
+function appealClass(appeal: AppearanceFeature["appeal"]) {
+  if (appeal === "Attractive") return "bg-[#dcebdd] text-[#23452f]";
+  if (appeal === "Unattractive") return "bg-[#ead7df] text-[#6b2945]";
+  if (appeal === "Mixed") return "bg-[#eee1bd] text-[#654d12]";
+  return "bg-[#e4e4e1] text-[#555951]";
+}
+
+function FeatureCards({ items, tone }: { items: AppearanceFeature[]; tone: "physical" | "controllable" }) {
+  return <div className="mt-4 grid gap-4">{items.map((item) => <article key={item.feature} className={`rounded-2xl p-5 ${tone === "physical" ? "bg-[#f4f0e7]" : "bg-white/70"}`}><div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold">{item.feature}</h4><span className={`rounded-full px-3 py-1 text-xs font-bold ${appealClass(item.appeal)}`}>{item.appeal}</span></div><p className={`mt-3 text-sm leading-6 ${tone === "physical" ? "text-[#625b67]" : "text-[#556157]"}`}>{item.observation}</p><p className={`mt-4 border-l-2 pl-3 font-semibold leading-6 ${tone === "physical" ? "border-[#57477d]" : "border-[#2d4a3e]"}`}>{item.friendTake}</p></article>)}</div>;
+}
+
 const demoRating: DatingPhotoRating = {
   usableAsDatingPhoto: true,
   overallScore: 6.2,
@@ -161,13 +184,6 @@ export default function RateMePage() {
     return `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(query)}`;
   }
 
-  function appealClass(appeal: DatingPhotoRating["facialFeatures"][number]["appeal"]) {
-    if (appeal === "Attractive") return "bg-[#dcebdd] text-[#23452f]";
-    if (appeal === "Unattractive") return "bg-[#ead7df] text-[#6b2945]";
-    if (appeal === "Mixed") return "bg-[#eee1bd] text-[#654d12]";
-    return "bg-[#e4e4e1] text-[#555951]";
-  }
-
   return <main className="min-h-screen bg-[#f4f0e7] text-[#20251f]">
     <AppNav active="rate-me" />
     {cropSourceFile && cropSourcePreview && <PhotoCropper sourceFile={cropSourceFile} sourceUrl={cropSourcePreview} onApply={applyCrop} onCancel={cancelCrop}/>}
@@ -221,9 +237,9 @@ export default function RateMePage() {
 
         {rating && <div className="mt-8 rounded-[1.7rem] border border-[#20251f]/10 bg-[#20251f] p-7 text-white sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#c9d2c8]">What people will notice first</p><div className="mt-5 grid gap-3 sm:grid-cols-2">{rating.firstImpressions.map((item) => <p key={item} className="rounded-2xl bg-white/10 p-4 text-sm leading-6">{item}</p>)}</div></div>}
 
-        {rating && <section className="mt-5 rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7 sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#57477d]">Face, feature by feature</p><h2 className="mt-3 font-serif text-4xl tracking-[-0.04em]">Here’s my actual opinion.</h2><div className="mt-6 grid gap-4 sm:grid-cols-2">{rating.facialFeatures.map((item) => <article key={item.feature} className="rounded-2xl bg-[#f4f0e7] p-5"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{item.feature}</h3><span className={`rounded-full px-3 py-1 text-xs font-bold ${appealClass(item.appeal)}`}>{item.appeal}</span></div><p className="mt-3 text-sm leading-6 text-[#625b67]">{item.observation}</p><p className="mt-4 border-l-2 border-[#57477d] pl-3 font-semibold leading-6">{item.friendTake}</p></article>)}</div></section>}
+        {rating && <section className="mt-5 rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7 sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#57477d]">Permanent physical features</p><h2 className="mt-3 font-serif text-4xl tracking-[-0.04em]">What the camera is working with.</h2><p className="mt-3 max-w-3xl text-sm leading-6 text-[#625b67]">These cards focus on visible structure and proportions. Angle and lighting can change how they appear, but they are not retake instructions or defects you are expected to fix.</p><div className="mt-7 grid gap-7 lg:grid-cols-2"><div><h3 className="text-sm font-bold uppercase tracking-[0.14em] text-[#57477d]">Face</h3><FeatureCards items={rating.facialFeatures.filter((item) => physicalFeatureNames.has(item.feature))} tone="physical"/></div><div><h3 className="text-sm font-bold uppercase tracking-[0.14em] text-[#57477d]">Body</h3><FeatureCards items={rating.bodyFeatures.filter((item) => physicalFeatureNames.has(item.feature))} tone="physical"/></div></div></section>}
 
-        {rating && <section className="mt-5 rounded-[1.7rem] border border-[#20251f]/10 bg-[#e8ede5] p-7 sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#2d4a3e]">Body and presence, feature by feature</p><div className="mt-5 grid gap-4 sm:grid-cols-2">{rating.bodyFeatures.map((item) => <article key={item.feature} className="rounded-2xl bg-white/70 p-5"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{item.feature}</h3><span className={`rounded-full px-3 py-1 text-xs font-bold ${appealClass(item.appeal)}`}>{item.appeal}</span></div><p className="mt-3 text-sm leading-6 text-[#556157]">{item.observation}</p><p className="mt-4 border-l-2 border-[#2d4a3e] pl-3 font-semibold leading-6">{item.friendTake}</p></article>)}</div></section>}
+        {rating && <section className="mt-5 rounded-[1.7rem] border border-[#20251f]/10 bg-[#e8ede5] p-7 sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#2d4a3e]">Controllable presentation</p><h2 className="mt-3 font-serif text-4xl tracking-[-0.04em]">What you can change for the next shot.</h2><p className="mt-3 max-w-3xl text-sm leading-6 text-[#556157]">These cards cover expression, grooming, skin presentation under the current light, posture and clothing—the parts you can actually adjust without pretending you have a different face or body.</p><div className="mt-7 grid gap-7 lg:grid-cols-2"><div><h3 className="text-sm font-bold uppercase tracking-[0.14em] text-[#2d4a3e]">Face</h3><FeatureCards items={rating.facialFeatures.filter((item) => !physicalFeatureNames.has(item.feature))} tone="controllable"/></div><div><h3 className="text-sm font-bold uppercase tracking-[0.14em] text-[#2d4a3e]">Body</h3><FeatureCards items={rating.bodyFeatures.filter((item) => !physicalFeatureNames.has(item.feature))} tone="controllable"/></div></div><p className="mt-6 text-xs leading-5 text-[#667168]">Some cards contain both structure and presentation—for example eyes with squinting, or shoulders with posture. They are placed according to the main focus of the existing analysis.</p></section>}
 
         {rating && <div className="mt-5 grid gap-5 md:grid-cols-2">
           <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7"><p className="flex items-center gap-2 text-sm font-semibold text-[#2d4a3e]"><Check size={16}/> What genuinely works</p><ul className="mt-5 space-y-3">{rating.strengths.map((item) => <li key={item} className="rounded-xl bg-[#e8ede5] p-4 text-sm leading-6">{item}</li>)}</ul></article>
