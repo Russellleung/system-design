@@ -22,6 +22,8 @@ A visitor chooses one of four tabs. Wardrobe analysis inventories visible clothi
 - [x] Score visible face, body presence, style, photo quality and dating appeal from 1–10 after explicit adult consent.
 - [x] Make Rate Me candid and colloquial about both genuine strengths and weaknesses without protected-trait inference, sexualisation, humiliation or claims about universal preferences.
 - [x] Explain concrete first impressions such as hair, smile, clothing, posture, lighting and visible skin presentation instead of returning only scores or generic praise.
+- [x] Explain visible attractive and less-attractive features plus possible positive and negative reactions from adult women without claiming universal preferences.
+- [x] Generate three non-identifying reference-image searches for grooming, styling/pose and setting; send only search text when the user opens a provider link.
 - [x] Persist Digital Twin entries and optional photos in browser-local IndexedDB.
 - [x] Send only user-authored text, timestamps and photo filenames for reflection synthesis—not stored photo files.
 - [x] Export the provisional Digital Twin reflection and source text as Markdown.
@@ -31,7 +33,7 @@ A visitor chooses one of four tabs. Wardrobe analysis inventories visible clothi
 
 ## Boundaries
 
-One photo is not treated as the complete wardrobe or a complete account of a person. Photo Coach does not infer attractiveness or sensitive traits. Rate Me may directly judge a consenting adult's visible face, body presentation, style and dating appeal in that image, but does not infer protected traits, exact weight, health or identity; sexualise the person; recommend dangerous bodily changes; or promise matches. Digital Twin stores voluntary entries and photos only in the user's browser; synthesis is provisional and based on authored words rather than appearance. Wardrobe and rating uploads are not persisted by the application. Shopping links are searches, not claims of live stock or price. Supabase remains unprovisioned until cross-device persistence or accounts are accepted scope.
+One photo is not treated as the complete wardrobe or a complete account of a person. Photo Coach does not infer attractiveness or sensitive traits. Rate Me may directly judge a consenting adult's visible face, body presentation, style and dating appeal in that image, but does not infer protected traits, exact weight, health or identity; sexualise the person; recommend dangerous bodily changes; promise matches; or claim all women share a preference. Reference searches use generic visible descriptors and never upload the user's photo to a search provider or attempt identity/lookalike matching. Digital Twin stores voluntary entries and photos only in the user's browser; synthesis is provisional and based on authored words rather than appearance. Wardrobe and rating uploads are not persisted by the application. Shopping links are searches, not claims of live stock or price. Supabase remains unprovisioned until cross-device persistence or accounts are accepted scope.
 
 ## Current stack
 

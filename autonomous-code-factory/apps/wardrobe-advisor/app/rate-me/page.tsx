@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useRef, useState } from "react";
-import { Camera, Check, ImagePlus, LoaderCircle, RotateCcw, ShieldCheck, Sparkles, Star } from "lucide-react";
+import { Camera, Check, ExternalLink, ImagePlus, LoaderCircle, RotateCcw, Search, ShieldCheck, Sparkles, Star } from "lucide-react";
 import { AppNav } from "@/components/app-nav";
 import type { DatingPhotoRating } from "@/lib/rate-me";
 
@@ -23,8 +23,17 @@ const demoRating: DatingPhotoRating = {
     { name: "Photo quality", score: 6, note: "Usable focus, mediocre light, and too much dead background." },
     { name: "Dating appeal", score: 6.2, note: "Not a disaster, not a lead photo, and definitely replaceable with one better afternoon." },
   ],
+  attractiveFeatures: ["The open smile softens the whole face and makes you look easy to talk to", "Your hair has enough volume to frame your face instead of disappearing into the background"],
+  lessAttractiveFeatures: ["The overhead shadow makes the eye area look more tired than it probably does in person", "The rigid shoulders flatten your presence and make the pose feel guarded"],
+  likelyLikes: ["Some women will like that the smile feels natural rather than rehearsed", "The clean, unfussy outfit reads as approachable and low-maintenance"],
+  likelyDislikes: ["The passport-photo posture can read as low effort", "The flat setting gives almost no clue about your taste or how spending time with you might feel"],
   strengths: ["Your face is clearly visible", "The outfit fits the setting", "Nothing looks heavily filtered or fake"],
   improvements: ["Stop facing the camera like it is taking your passport photo", "Find window light and turn about 30 degrees", "Use a closer crop and give the background less real estate"],
+  referenceSearches: [
+    { title: "Hair and face framing", query: "textured hair warm smile window light portrait", why: "Copy the softer side light and the way the hair frames the forehead." },
+    { title: "Relaxed body presence", query: "relaxed standing portrait fitted casual shirt pose", why: "Look for loose shoulders, asymmetrical stance and hands with something natural to do." },
+    { title: "A setting with personality", query: "candid cafe portrait natural light dating profile", why: "Copy the environmental context and tighter composition, not the person." },
+  ],
   confidenceNote: "Demo result. The score is one blunt subjective opinion about one image—not a scientific measure or a guarantee of matches.",
 };
 
@@ -80,6 +89,14 @@ export default function RateMePage() {
     if (inputRef.current) inputRef.current.value = "";
   }
 
+  function googleImagesUrl(query: string) {
+    return `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`;
+  }
+
+  function unsplashUrl(query: string) {
+    return `https://unsplash.com/s/photos/${encodeURIComponent(query.trim().replaceAll(" ", "-"))}`;
+  }
+
   return <main className="min-h-screen bg-[#f4f0e7] text-[#20251f]">
     <AppNav active="rate-me" />
     <section className="mx-auto max-w-6xl px-5 pb-12 pt-12 sm:px-8 sm:pt-20">
@@ -129,6 +146,18 @@ export default function RateMePage() {
           <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7"><p className="flex items-center gap-2 text-sm font-semibold text-[#2d4a3e]"><Check size={16}/> What genuinely works</p><ul className="mt-5 space-y-3">{rating.strengths.map((item) => <li key={item} className="rounded-xl bg-[#e8ede5] p-4 text-sm leading-6">{item}</li>)}</ul></article>
           <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7"><p className="flex items-center gap-2 text-sm font-semibold text-[#57477d]"><Sparkles size={16}/> The hard truth</p><ul className="mt-5 space-y-3">{rating.improvements.map((item) => <li key={item} className="rounded-xl bg-[#ece7f4] p-4 text-sm leading-6">{item}</li>)}</ul></article>
         </div>}
+
+        {rating && <div className="mt-5 grid gap-5 md:grid-cols-2">
+          <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-[#e8ede5] p-7"><h3 className="font-serif text-3xl tracking-[-0.03em]">Your attractive features</h3><ul className="mt-5 space-y-3">{rating.attractiveFeatures.map((item) => <li key={item} className="rounded-xl bg-white/70 p-4 text-sm leading-6">{item}</li>)}</ul></article>
+          <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-[#ece7f4] p-7"><h3 className="font-serif text-3xl tracking-[-0.03em]">What is less attractive here</h3><ul className="mt-5 space-y-3">{rating.lessAttractiveFeatures.map((item) => <li key={item} className="rounded-xl bg-white/70 p-4 text-sm leading-6">{item}</li>)}</ul></article>
+        </div>}
+
+        {rating && <div className="mt-5 grid gap-5 md:grid-cols-2">
+          <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7"><h3 className="font-serif text-3xl tracking-[-0.03em]">What may work with women</h3><ul className="mt-5 space-y-3">{rating.likelyLikes.map((item) => <li key={item} className="border-l-2 border-[#2d4a3e] pl-4 text-sm leading-6">{item}</li>)}</ul></article>
+          <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7"><h3 className="font-serif text-3xl tracking-[-0.03em]">What may put some women off</h3><ul className="mt-5 space-y-3">{rating.likelyDislikes.map((item) => <li key={item} className="border-l-2 border-[#57477d] pl-4 text-sm leading-6">{item}</li>)}</ul><p className="mt-5 text-xs leading-5 text-[#667168]">Women are not a single audience. These are possible reactions to this photo, not facts about every viewer.</p></article>
+        </div>}
+
+        {rating && <section className="mt-5 rounded-[1.7rem] bg-[#d9c7a8] p-7 sm:p-8"><p className="flex items-center gap-2 text-sm font-semibold"><Search size={17}/> Reference pictures to study</p><h2 className="mt-3 max-w-2xl font-serif text-4xl tracking-[-0.04em]">Borrow the setup, not somebody else’s face.</h2><p className="mt-3 max-w-3xl text-sm leading-6 text-[#4e493f]">These searches use generic visible descriptors. Your uploaded photo is not sent to Google Images or Unsplash; only the search words are shared after you open a link.</p><div className="mt-6 grid gap-4 lg:grid-cols-3">{rating.referenceSearches.map((search) => <article key={search.title} className="rounded-2xl bg-[#fbf9f3] p-5"><h3 className="font-semibold">{search.title}</h3><p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#776b59]">{search.query}</p><p className="mt-3 text-sm leading-6 text-[#625b50]">{search.why}</p><div className="mt-5 flex flex-wrap gap-2"><a href={googleImagesUrl(search.query)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-full bg-[#20251f] px-3 py-2 text-xs font-semibold text-white">Google Images <ExternalLink size={12}/></a><a href={unsplashUrl(search.query)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-[#20251f]/20 px-3 py-2 text-xs font-semibold">Unsplash <ExternalLink size={12}/></a></div></article>)}</div></section>}
 
         <aside className="mt-8 rounded-[1.7rem] border border-[#20251f]/10 bg-[#f4f0e7] p-6 sm:p-8"><p className="flex items-center gap-2 font-semibold"><ShieldCheck size={18}/> Blunt, not scientific</p><p className="mt-3 max-w-3xl text-sm leading-6 text-[#667168]">The face and body scores are one model’s subjective read of one consenting adult’s photo. They are not measurements of worth and cannot represent what all women—or any group—find attractive. Public dating-app guidance supports the photo-quality part: clear face, good light, recent solo image, minimal filtering. The only real performance test is rotating photos with actual opt-in match data.</p><div className="mt-4 flex flex-wrap gap-3 text-sm font-semibold"><a className="underline underline-offset-4" href="https://support.bumble.com/hc/articles/28523708029341-Uploading-profile-photos" target="_blank" rel="noreferrer">Bumble guidance</a><a className="underline underline-offset-4" href="https://au.tinderpressroom.com/introducing-smart-photos-for-the-most-swipeworthy-you" target="_blank" rel="noreferrer">Tinder Smart Photos</a></div></aside>
         <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment" onChange={choosePhoto} className="sr-only"/>
