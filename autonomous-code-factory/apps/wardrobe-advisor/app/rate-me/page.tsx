@@ -3,6 +3,7 @@
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { Camera, Check, ExternalLink, ImagePlus, LoaderCircle, RotateCcw, Search, ShieldCheck, Sparkles, Star } from "lucide-react";
 import { AppNav } from "@/components/app-nav";
+import { PhotoCropper } from "@/components/photo-cropper";
 import type { DatingPhotoRating } from "@/lib/rate-me";
 
 const demoRating: DatingPhotoRating = {
@@ -50,15 +51,19 @@ const demoRating: DatingPhotoRating = {
 };
 
 export default function RateMePage() {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const libraryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [cropSourceFile, setCropSourceFile] = useState<File | null>(null);
+  const [cropSourcePreview, setCropSourcePreview] = useState<string | null>(null);
   const [rating, setRating] = useState<DatingPhotoRating | null>(null);
   const [confirmedAdult, setConfirmedAdult] = useState(false);
   const [status, setStatus] = useState<"idle" | "analysing" | "review" | "error">("idle");
   const [message, setMessage] = useState("");
 
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+  useEffect(() => () => { if (cropSourcePreview) URL.revokeObjectURL(cropSourcePreview); }, [cropSourcePreview]);
 
   function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
     const chosen = event.target.files?.[0];
@@ -68,12 +73,30 @@ export default function RateMePage() {
       setMessage("Choose a JPEG, PNG or WebP image under 10 MB.");
       return;
     }
-    if (preview) URL.revokeObjectURL(preview);
-    setFile(chosen);
-    setPreview(URL.createObjectURL(chosen));
-    setRating(null);
+    if (cropSourcePreview) URL.revokeObjectURL(cropSourcePreview);
+    setCropSourceFile(chosen);
+    setCropSourcePreview(URL.createObjectURL(chosen));
     setStatus("idle");
     setMessage("");
+    event.target.value = "";
+  }
+
+  function applyCrop(croppedFile: File) {
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(croppedFile);
+    setPreview(URL.createObjectURL(croppedFile));
+    setCropSourceFile(null);
+    setCropSourcePreview(null);
+    setRating(null);
+    setConfirmedAdult(false);
+    setStatus("idle");
+    setMessage("");
+  }
+
+  function cancelCrop() {
+    if (cropSourcePreview) URL.revokeObjectURL(cropSourcePreview);
+    setCropSourceFile(null);
+    setCropSourcePreview(null);
   }
 
   async function ratePhoto() {
@@ -97,8 +120,11 @@ export default function RateMePage() {
 
   function reset() {
     if (preview) URL.revokeObjectURL(preview);
+    if (cropSourcePreview) URL.revokeObjectURL(cropSourcePreview);
     setFile(null); setPreview(null); setRating(null); setConfirmedAdult(false); setStatus("idle"); setMessage("");
-    if (inputRef.current) inputRef.current.value = "";
+    setCropSourceFile(null); setCropSourcePreview(null);
+    if (libraryInputRef.current) libraryInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
   }
 
   function googleImagesUrl(query: string) {
@@ -115,6 +141,7 @@ export default function RateMePage() {
 
   return <main className="min-h-screen bg-[#f4f0e7] text-[#20251f]">
     <AppNav active="rate-me" />
+    {cropSourceFile && cropSourcePreview && <PhotoCropper sourceFile={cropSourceFile} sourceUrl={cropSourcePreview} onApply={applyCrop} onCancel={cancelCrop}/>}
     <section className="mx-auto max-w-6xl px-5 pb-12 pt-12 sm:px-8 sm:pt-20">
       <div className="grid items-end gap-8 lg:grid-cols-[1.1fr_.9fr]">
         <div><p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#57477d]">No-copium dating review · consenting adults only</p><h1 className="max-w-3xl font-serif text-[clamp(3.1rem,8vw,6.5rem)] leading-[0.92] tracking-[-0.055em]">Fine. Let’s judge it.</h1></div>
@@ -126,17 +153,18 @@ export default function RateMePage() {
       <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
         <div className="mb-7 flex items-center justify-between"><p className="text-sm font-semibold text-[#556157]">Brutally subjective · prototype</p>{preview && <button onClick={reset} className="flex items-center gap-2 text-sm text-[#556157]"><RotateCcw size={15}/> Start over</button>}</div>
 
-        {!preview && <button onClick={() => inputRef.current?.click()} className="min-h-[430px] w-full rounded-[2rem] border border-dashed border-[#57477d]/40 bg-[#ece7f4] p-8 text-left transition hover:bg-[#e7e0f2] sm:p-12">
+        {!preview && <div className="min-h-[430px] w-full rounded-[2rem] border border-dashed border-[#57477d]/40 bg-[#ece7f4] p-8 text-left sm:p-12">
           <span className="mb-20 grid h-16 w-16 place-items-center rounded-full bg-[#57477d] text-white"><Camera size={28}/></span>
-          <h2 className="max-w-xl font-serif text-5xl tracking-[-0.04em]">Choose a dating-profile photo</h2>
-          <p className="mt-4 max-w-lg leading-6 text-[#667168]">Solo portraits work best. Group photos can be reviewed, but the score will reflect how hard it is to identify the profile owner.</p>
-        </button>}
+          <h2 className="max-w-xl font-serif text-5xl tracking-[-0.04em]">Add a dating-profile photo</h2>
+          <p className="mt-4 max-w-lg leading-6 text-[#667168]">Take a new photo or choose one from Photos or local files. You can crop it before anything is analysed.</p>
+          <div className="mt-8 flex flex-wrap gap-3"><button type="button" onClick={() => cameraInputRef.current?.click()} className="flex items-center gap-2 rounded-full bg-[#57477d] px-5 py-3 font-semibold text-white"><Camera size={17}/> Take photo</button><button type="button" onClick={() => libraryInputRef.current?.click()} className="flex items-center gap-2 rounded-full bg-white px-5 py-3 font-semibold text-[#49396d] shadow-sm"><ImagePlus size={17}/> Choose from photos or files</button></div>
+        </div>}
 
         {preview && <div className="grid gap-7 lg:grid-cols-[1.02fr_.98fr]">
           <div className="relative min-h-[560px] overflow-hidden rounded-[2rem] bg-[#252429]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={preview} alt="Selected dating-profile candidate" className="absolute inset-0 h-full w-full object-contain"/>
-            <button onClick={() => inputRef.current?.click()} className="absolute bottom-5 left-5 flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold shadow-sm"><ImagePlus size={15}/> Choose another</button>
+            <div className="absolute bottom-5 left-5 flex flex-wrap gap-2"><button type="button" onClick={() => cameraInputRef.current?.click()} className="flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold shadow-sm"><Camera size={15}/> Retake</button><button type="button" onClick={() => libraryInputRef.current?.click()} className="flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold shadow-sm"><ImagePlus size={15}/> Choose another</button></div>
           </div>
           <div className="flex flex-col rounded-[2rem] bg-[#57477d] p-8 text-white sm:p-10">
             {!rating ? <>
@@ -180,7 +208,8 @@ export default function RateMePage() {
         {rating && <section className="mt-5 rounded-[1.7rem] bg-[#d9c7a8] p-7 sm:p-8"><p className="flex items-center gap-2 text-sm font-semibold"><Search size={17}/> Reference pictures to study</p><h2 className="mt-3 max-w-2xl font-serif text-4xl tracking-[-0.04em]">Borrow the setup, not somebody else’s face.</h2><p className="mt-3 max-w-3xl text-sm leading-6 text-[#4e493f]">These searches use generic visible descriptors. Your uploaded photo is not sent to Google Images or Unsplash; only the search words are shared after you open a link.</p><div className="mt-6 grid gap-4 lg:grid-cols-3">{rating.referenceSearches.map((search) => <article key={search.title} className="rounded-2xl bg-[#fbf9f3] p-5"><h3 className="font-semibold">{search.title}</h3><p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#776b59]">{search.query}</p><p className="mt-3 text-sm leading-6 text-[#625b50]">{search.why}</p><div className="mt-5 flex flex-wrap gap-2"><a href={googleImagesUrl(search.query)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-full bg-[#20251f] px-3 py-2 text-xs font-semibold text-white">Google Images <ExternalLink size={12}/></a><a href={unsplashUrl(search.query)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-[#20251f]/20 px-3 py-2 text-xs font-semibold">Unsplash <ExternalLink size={12}/></a></div></article>)}</div></section>}
 
         <aside className="mt-8 rounded-[1.7rem] border border-[#20251f]/10 bg-[#f4f0e7] p-6 sm:p-8"><p className="flex items-center gap-2 font-semibold"><ShieldCheck size={18}/> Blunt, not scientific</p><p className="mt-3 max-w-3xl text-sm leading-6 text-[#667168]">The face and body scores are one model’s subjective read of one consenting adult’s photo. They are not measurements of worth and cannot represent what all women—or any group—find attractive. Public dating-app guidance supports the photo-quality part: clear face, good light, recent solo image, minimal filtering. The only real performance test is rotating photos with actual opt-in match data.</p><div className="mt-4 flex flex-wrap gap-3 text-sm font-semibold"><a className="underline underline-offset-4" href="https://support.bumble.com/hc/articles/28523708029341-Uploading-profile-photos" target="_blank" rel="noreferrer">Bumble guidance</a><a className="underline underline-offset-4" href="https://au.tinderpressroom.com/introducing-smart-photos-for-the-most-swipeworthy-you" target="_blank" rel="noreferrer">Tinder Smart Photos</a></div></aside>
-        <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment" onChange={choosePhoto} className="sr-only"/>
+        <input ref={libraryInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={choosePhoto} className="sr-only"/>
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="user" onChange={choosePhoto} className="sr-only"/>
       </div>
     </section>
   </main>;

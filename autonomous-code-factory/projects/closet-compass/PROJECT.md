@@ -20,6 +20,7 @@ A visitor chooses one of four tabs. Wardrobe analysis inventories visible clothi
 - [x] Display, hide and mirror a deterministic dotted pose guide.
 - [x] Restrict Photo Coach to photographic technique rather than appearance or sensitive-trait judgments.
 - [x] Score visible face, body presence, style, photo quality and dating appeal from 1–10 after explicit adult consent.
+- [x] Let Rate Me users take a photo or choose one from Photos/local files, then crop it to portrait or square with adjustable zoom and focal position.
 - [x] Make Rate Me candid and colloquial about both genuine strengths and weaknesses without protected-trait inference, sexualisation, humiliation or claims about universal preferences.
 - [x] Explain concrete first impressions such as hair, smile, clothing, posture, lighting and visible skin presentation instead of returning only scores or generic praise.
 - [x] Explain visible attractive and less-attractive features plus possible positive and negative reactions from adult women without claiming universal preferences.
