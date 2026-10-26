@@ -22,8 +22,11 @@ export type StyleUpgrade = {
 export type AppearanceFeature = {
   feature: string;
   observation: string;
+  score: number;
   appeal: "Attractive" | "Mixed" | "Unattractive" | "Not judgeable";
+  kind: "Physical feature" | "Controllable presentation";
   friendTake: string;
+  action: string;
 };
 
 export type DatingPhotoRating = {
@@ -96,33 +99,39 @@ const ratingSchema = {
     },
     facialFeatures: {
       type: "array",
-      minItems: 8,
-      maxItems: 8,
+      minItems: 9,
+      maxItems: 9,
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["feature", "observation", "appeal", "friendTake"],
+        required: ["feature", "observation", "score", "appeal", "kind", "friendTake", "action"],
         properties: {
-          feature: { type: "string", enum: ["Facial balance", "Eyes & brows", "Nose & midface", "Mouth & expression", "Jaw, chin & face shape", "Ears", "Skin presentation", "Hair & grooming"] },
+          feature: { type: "string", enum: ["Facial balance", "Eyes & brows", "Nose & midface", "Mouth & lips", "Jaw, chin & face shape", "Ears", "Skin appearance", "Hair & grooming", "Facial expression & tension"] },
           observation: { type: "string" },
+          score: { type: "number", minimum: 0, maximum: 10 },
           appeal: { type: "string", enum: ["Attractive", "Mixed", "Unattractive", "Not judgeable"] },
+          kind: { type: "string", enum: ["Physical feature", "Controllable presentation"] },
           friendTake: { type: "string" },
+          action: { type: "string" },
         },
       },
     },
     bodyFeatures: {
       type: "array",
-      minItems: 4,
-      maxItems: 4,
+      minItems: 5,
+      maxItems: 5,
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["feature", "observation", "appeal", "friendTake"],
+        required: ["feature", "observation", "score", "appeal", "kind", "friendTake", "action"],
         properties: {
-          feature: { type: "string", enum: ["Shoulders & posture", "Torso & proportions", "Overall silhouette", "Clothing fit"] },
+          feature: { type: "string", enum: ["Shoulder structure", "Torso & proportions", "Overall silhouette", "Posture & body pose", "Clothing fit"] },
           observation: { type: "string" },
+          score: { type: "number", minimum: 0, maximum: 10 },
           appeal: { type: "string", enum: ["Attractive", "Mixed", "Unattractive", "Not judgeable"] },
+          kind: { type: "string", enum: ["Physical feature", "Controllable presentation"] },
           friendTake: { type: "string" },
+          action: { type: "string" },
         },
       },
     },
@@ -190,15 +199,19 @@ Estimate only apparentAge.range using the broad schema bands. This is how old th
 
 Write firstImpressions as four to six short, natural reactions from an observant friend. Each reaction must name a concrete visible detail and its effect. Mix genuine enthusiasm and criticism when the image supports both. Good specificity sounds like: "That steady look is hot—it feels deliberate rather than blank," "That shirt colour really works with the rest of the shot," or "The harsh light is exaggerating every bit of skin texture." Do not reuse those examples unless they are genuinely visible. Avoid vague filler such as "nice photo," "you look good," "improve grooming," or "great style." If hair, expression, eyes, facial hair, accessories, a particular garment, posture, skin texture, shine, flaking or a visible blemish stands out, say so plainly. Describe only visible appearance; do not diagnose a skin condition. Suggest only low-risk, reversible photo preparation, and never advise squeezing, picking or popping a blemish.
 
-Create facialFeatures in this exact order: Facial balance, Eyes & brows, Nose & midface, Mouth & expression, Jaw, chin & face shape, Ears, Skin presentation, Hair & grooming. Every item has four jobs:
+Create facialFeatures in this exact order: Facial balance, Eyes & brows, Nose & midface, Mouth & lips, Jaw, chin & face shape, Ears, Skin appearance, Hair & grooming, Facial expression & tension. Every item has these jobs:
 1. observation: briefly describe the concrete visible feature without euphemism.
-2. appeal: choose exactly Attractive, Mixed, Unattractive or Not judgeable. Do not retreat to Mixed just to sound polite.
-3. friendTake: give an unmistakable, opinionated attraction verdict in natural spoken language. Say what you personally like or dislike, whether it looks pretty, handsome, cute, hot, plain, awkward, unattractive or unflattering in this image, and why.
-4. Separate the person's visible structure from what the expression, lens, angle, shadow, hair coverage or resolution may be doing to it.
+2. score: give this visible feature a calibrated 0–10 attraction score. Use one decimal when useful. A 5 is ordinary, 7 is clearly attractive and 9 is exceptional. Use 0 only when it is Not judgeable.
+3. appeal: choose exactly Attractive, Mixed, Unattractive or Not judgeable. Keep it consistent with the score: Attractive is 6.5–10, Mixed is 4.5–6.4, Unattractive is 1–4.4, and Not judgeable is 0. Do not retreat to Mixed just to sound polite.
+4. kind: use Physical feature for visible anatomy or skin appearance that the person cannot change while taking this photo. Use Controllable presentation for expression, tension, haircut, grooming, pose, clothing and other choices the person can change for a retake.
+5. friendTake: give an unmistakable, opinionated attraction verdict in natural spoken language. Say what you personally like or dislike, whether it looks pretty, handsome, cute, hot, plain, awkward, unattractive or unflattering in this image, and why.
+6. action: for Physical feature, explicitly say there is nothing anatomical to "fix" and only suggest optional presentation choices such as angle or light when relevant. Never tell someone with thin lips to thicken them, change their nose, jaw, ears, face shape, skin or body proportions. For Controllable presentation, give one specific change for the next photo.
+
+Keep structure and presentation separate. Mouth & lips judges the visible lips/mouth shape; Facial expression & tension separately judges whether the mouth is stretched, the smile looks forced, the jaw is clenched or the expression looks natural. Skin appearance may be scored as it looks in this image, but the action may only change light, shine, camera distance or other photographic presentation—not demand different skin. Haircut and grooming are controllable. Do not lower a physical-feature score merely because a bad pose, expression, shadow or lens makes it look worse; account for those in the matching controllable feature.
 
 Sound like an extroverted friend talking across a table, not a clinician writing a report. Avoid sterile filler such as "presents well", "appears harmonious", "moderately dense", "moderate width", "projects openness" or "frames the face naturally" unless you immediately give a clear human opinion. Strong phrasing is welcome when grounded, for example: "That steady expression is hot; it looks confident rather than blank", "Those ears stick out a little with the sides cut this short—not ugly, but this haircut puts them on display", "The squint is doing you no favours; it makes your eyes look smaller and less engaged", or "That fringe is too heavy. I don't like it—it crowds your face." Do not reuse an example unless the image actually supports it. Direct descriptions such as visibly balanced or asymmetric presentation, prominent ears, narrow-looking or squinting eyes, sparse or strong brows, a broad or narrow-looking nose, thin or full-looking lips, a soft or defined jaw, visible skin texture, and flat or voluminous hair are allowed when genuinely visible. Never fabricate measurements or pretend one photo proves permanent anatomical symmetry. If a feature is obscured, use appeal Not judgeable and say "Not clear from this photo" in both text fields instead of guessing.
 
-Create bodyFeatures in this exact order: Shoulders & posture, Torso & proportions, Overall silhouette, Clothing fit. Use the same observation, appeal and friendTake rules. Be direct about whether the presentation looks attractive, awkward or unflattering, but explain when pose, lens, loose clothing or cropping limits the judgment. Do not estimate weight, body-fat percentage, health, fitness or measurements.
+Create bodyFeatures in this exact order: Shoulder structure, Torso & proportions, Overall silhouette, Posture & body pose, Clothing fit. Mark the first three Physical feature and the last two Controllable presentation. Use the same observation, score, appeal, kind, friendTake and action rules. Be direct about whether each looks attractive, awkward or unflattering, but do not let poor posture reduce the Shoulder structure or Torso & proportions score. Explain when lens, loose clothing or cropping limits the judgment. Do not estimate weight, body-fat percentage, health, fitness or measurements.
 
 In attractiveFeatures and lessAttractiveFeatures, directly name the visible facial, body-presentation, grooming and styling features that increase or reduce this photo's appeal. Explain the effect of each feature instead of merely labelling it attractive or unattractive. Do not turn temporary photo problems such as bad light into claims about the person's permanent appearance.
 
@@ -250,8 +263,8 @@ export function parseDatingPhotoRating(outputText: string): DatingPhotoRating | 
         && typeof row.score === "number" && row.score >= 0 && row.score <= 10
         && isText(row.note);
     })
-    || !validFeatureList(item.facialFeatures, ["Facial balance", "Eyes & brows", "Nose & midface", "Mouth & expression", "Jaw, chin & face shape", "Ears", "Skin presentation", "Hair & grooming"])
-    || !validFeatureList(item.bodyFeatures, ["Shoulders & posture", "Torso & proportions", "Overall silhouette", "Clothing fit"])
+    || !validFeatureList(item.facialFeatures, ["Facial balance", "Eyes & brows", "Nose & midface", "Mouth & lips", "Jaw, chin & face shape", "Ears", "Skin appearance", "Hair & grooming", "Facial expression & tension"])
+    || !validFeatureList(item.bodyFeatures, ["Shoulder structure", "Torso & proportions", "Overall silhouette", "Posture & body pose", "Clothing fit"])
     || !Array.isArray(item.attractiveFeatures) || item.attractiveFeatures.length < 2 || item.attractiveFeatures.length > 4 || !item.attractiveFeatures.every(isText)
     || !Array.isArray(item.lessAttractiveFeatures) || item.lessAttractiveFeatures.length < 2 || item.lessAttractiveFeatures.length > 4 || !item.lessAttractiveFeatures.every(isText)
     || !Array.isArray(item.likelyLikes) || item.likelyLikes.length < 2 || item.likelyLikes.length > 4 || !item.likelyLikes.every(isText)
@@ -279,9 +292,19 @@ function validFeatureList(value: unknown, names: string[]) {
   return Array.isArray(value) && value.length === names.length && value.every((feature, index) => {
     if (typeof feature !== "object" || feature === null) return false;
     const row = feature as Record<string, unknown>;
+    const expectedKind = ["Hair & grooming", "Facial expression & tension", "Posture & body pose", "Clothing fit"].includes(names[index])
+      ? "Controllable presentation"
+      : "Physical feature";
     return row.feature === names[index]
       && isText(row.observation)
+      && typeof row.score === "number" && row.score >= 0 && row.score <= 10
       && ["Attractive", "Mixed", "Unattractive", "Not judgeable"].includes(row.appeal as string)
-      && isText(row.friendTake);
+      && row.kind === expectedKind
+      && ((row.appeal === "Attractive" && row.score >= 6.5)
+        || (row.appeal === "Mixed" && row.score >= 4.5 && row.score < 6.5)
+        || (row.appeal === "Unattractive" && row.score >= 1 && row.score < 4.5)
+        || (row.appeal === "Not judgeable" && row.score === 0))
+      && isText(row.friendTake)
+      && isText(row.action);
   });
 }

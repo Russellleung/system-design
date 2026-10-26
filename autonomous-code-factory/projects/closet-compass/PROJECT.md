@@ -26,8 +26,10 @@ A visitor chooses one of four tabs. Wardrobe analysis inventories visible clothi
 - [x] Let Rate Me users take a photo or choose one from Photos/local files, then crop it to portrait or square with adjustable zoom and focal position.
 - [x] Make Rate Me candid and colloquial about both genuine strengths and weaknesses without protected-trait inference, sexualisation, humiliation or claims about universal preferences.
 - [x] Explain concrete first impressions such as hair, smile, clothing, posture, lighting and visible skin presentation instead of returning only scores or generic praise.
-- [x] Require feature-by-feature observations for facial balance, eyes/brows, nose, mouth/expression, jaw/face shape, ears, skin, hair, posture, proportions, silhouette and clothing fit.
+- [x] Require feature-by-feature observations for facial balance, eyes/brows, nose, mouth/lips, jaw/face shape, ears, skin, hair, facial expression, shoulder structure, proportions, silhouette, body pose and clothing fit.
 - [x] Give every visible face/body feature an explicit attractive, mixed or unattractive verdict followed by a plainspoken, opinionated friend take rather than clinical filler.
+- [x] Give every visible face/body feature its own calibrated 1–10 attraction score; use N/A instead of inventing a score when it cannot be judged.
+- [x] Split physical traits from controllable presentation so anatomy and skin are not framed as instant fixes, while expression, haircut, grooming, posture, pose and clothing receive actionable retake advice.
 - [x] Explain visible attractive and less-attractive features plus possible positive and negative reactions from adult women without claiming universal preferences.
 - [x] Generate three non-identifying reference-image searches for grooming, styling/pose and setting; send only search text when the user opens a provider link.
 - [x] Give tentative face-shape, body-silhouette, colour and haircut direction plus searchable shirt, pants, palette and haircut upgrades.

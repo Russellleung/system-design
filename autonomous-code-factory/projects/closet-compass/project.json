@@ -11,7 +11,7 @@
     "The user can correct or remove detected garments before following recommendations.",
     "A user can upload a portrait, receive technique-only coaching and optionally display or mirror a deterministic dotted pose guide.",
     "Photo Coach does not score appearance or infer sensitive personal traits.",
-    "A consenting adult can take or choose and crop a photo, then receive separate physical-attractiveness and dating-photo-effectiveness scores, a broad apparent-age range, expression-neutral feedback, an explicit attractive/mixed/unattractive verdict and colloquial friend take for each face/body feature, possible reactions from women, tentative visual-type guidance, searchable clothing/colour/haircut upgrades and non-identifying reference-image searches.",
+    "A consenting adult can take or choose and crop a photo, then receive separate physical-attractiveness and dating-photo-effectiveness scores, a broad apparent-age range, expression-neutral feedback, and a calibrated score plus verdict for each face/body feature, split between physical traits that are not presented as fixes and controllable expression, pose, grooming and clothing guidance.",
     "Digital Twin stores entries and photos locally, sends only written evidence for synthesis, and exports an editable Markdown reflection.",
     "The public health endpoint and all four product pages pass smoke tests for the deployed commit."
   ],
