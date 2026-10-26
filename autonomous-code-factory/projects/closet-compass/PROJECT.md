@@ -20,7 +20,7 @@ A visitor chooses one of four tabs. Wardrobe analysis inventories visible clothi
 - [x] Display, hide and mirror a deterministic dotted pose guide.
 - [x] Restrict Photo Coach to photographic technique rather than appearance or sensitive-trait judgments.
 - [x] Score visible face, body presence, style, photo quality and dating appeal from 1–10 after explicit adult consent.
-- [x] Make Rate Me candid and colloquial without protected-trait inference, sexualisation, humiliation or claims about universal preferences.
+- [x] Make Rate Me candid and colloquial about both genuine strengths and weaknesses without protected-trait inference, sexualisation, humiliation or claims about universal preferences.
 - [x] Persist Digital Twin entries and optional photos in browser-local IndexedDB.
 - [x] Send only user-authored text, timestamps and photo filenames for reflection synthesis—not stored photo files.
 - [x] Export the provisional Digital Twin reflection and source text as Markdown.
