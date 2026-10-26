@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-26T21:27:59+08:00
+Updated: 2026-10-26T21:48:37+08:00
 
 ## Working now
 
@@ -13,6 +13,7 @@ Updated: 2026-10-26T21:27:59+08:00
 - Vision failures now return a safe request reference and log structured provider diagnostics without logging the photo or API key.
 - Vision analysis is provider-neutral: Gemini is the default and OpenAI remains a configurable fallback.
 - Gemini uses `gemini-3.5-flash-lite`, structured output and server-side semantic validation.
+- Rate Me sends Gemini a reduced structural schema because the full nested schema exceeded Gemini's serving-state limit; the complete score, category, order and length rules remain enforced in server code.
 - The photo-ready UI discloses Gemini free-tier data use before submission.
 - A second `/photo-coach` tab provides technique-only angle, pose, framing and lighting advice.
 - Photo Coach can display, hide and mirror a deterministic dotted SVG pose guide selected from validated templates.
@@ -26,17 +27,16 @@ Updated: 2026-10-26T21:27:59+08:00
 - Rate Me gives a broad apparent-age range with visible presentation reasons and labels it as how old the adult looks in this photo, not their actual age.
 - A new `/digital-twin` tab stores voluntary thoughts and optional photos in browser-local IndexedDB, sends only written entries and photo filenames for provisional synthesis, and exports Markdown.
 - Navigation and smoke coverage include all four product tabs.
-- Commit `17c0562` is deployed to the existing Render production service as deploy `dep-dbfl9v8m7kps739ho2dg`.
+- Commit `cde9e72` is deployed to the existing Render production service as deploy `dep-dbflih0m7kps739ijigg`.
 
 ## In progress
 
-- Add `GEMINI_API_KEY` directly in Render, then test a real wardrobe photo.
+- Re-test Rate Me with the consenting adult portrait that previously produced the Gemini schema error.
 
 ## Blocked or awaiting decisions
 
 - Saved wardrobes, authentication and Supabase provisioning are intentionally out of scope pending a product decision.
 - Cross-device Digital Twin sync remains intentionally out of scope; the current local-first store can be erased with browser data.
-- Live Gemini verification awaits a user-created Google AI Studio key; agents must not receive or commit it.
 
 ## Verification evidence
 
@@ -88,6 +88,10 @@ Updated: 2026-10-26T21:27:59+08:00
 | `17c0562` | Local Node 23 / Docker Node 22 | Project validation, ESLint, production build, image build and all five route smoke tests | Passed |
 | `17c0562` | Render | deploy `dep-dbfl9v8m7kps739ho2dg` | Live |
 | `17c0562` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me` and `/digital-twin` smoke tests | Passed |
+| `cde9e72` | Local Node 23 / Docker Node 22 | Release preflight, ESLint, production build, image build and all five route smoke tests | Passed |
+| `cde9e72` | Render | deploy `dep-dbflih0m7kps739ijigg` | Live |
+| `cde9e72` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me` and `/digital-twin` smoke tests | Passed |
+| `cde9e72` | Render public API | Synthetic non-person and illustrated-person `/api/rate-me` probes | Gemini accepted the reduced schema; both intentionally non-photographic inputs reached server validation but returned `502` as incomplete, so a real consenting-adult photo remains the end-to-end check |
 
 ## Live resources
 
@@ -97,4 +101,4 @@ Updated: 2026-10-26T21:27:59+08:00
 
 ## Next action
 
-With consenting adult-owned smiling and non-smiling portraits, verify that the live model keeps physical traits separate from controllable presentation, does not turn anatomy into corrective advice, keeps physical attractiveness separate from photo effectiveness, and gives plausible feature scores and a broad apparent-age range. Also complete the outstanding phone crop, generated-search and Digital Twin persistence/export/clear checks.
+Retry the previously failing consenting-adult portrait and confirm Rate Me returns a validated result. Then use consenting adult-owned smiling and non-smiling portraits to verify that the live model keeps physical traits separate from controllable presentation, does not turn anatomy into corrective advice, keeps physical attractiveness separate from photo effectiveness, and gives plausible feature scores and a broad apparent-age range. Also complete the outstanding phone crop, generated-search and Digital Twin persistence/export/clear checks.
