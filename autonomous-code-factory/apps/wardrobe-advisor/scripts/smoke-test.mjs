@@ -31,3 +31,13 @@ await requireResponse("/photo-coach", async (response) => {
     throw new Error("Photo Coach page did not contain its primary heading");
   }
 });
+
+await requireResponse("/rate-me", async (response) => {
+  const body = await response.text();
+  if (!body.includes("Rate the photo")) throw new Error("Rate Me page did not contain its primary heading");
+});
+
+await requireResponse("/digital-twin", async (response) => {
+  const body = await response.text();
+  if (!body.includes("Build a twin")) throw new Error("Digital Twin page did not contain its primary heading");
+});

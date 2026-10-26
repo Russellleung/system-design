@@ -257,6 +257,52 @@ async function analyseWithOpenAI(
   };
 }
 
+async function analyseTextWithGemini(prompt: string, schema: unknown): Promise<ProviderResult> {
+  const provider = "gemini" as const;
+  const model = process.env.GEMINI_VISION_MODEL ?? "gemini-3.5-flash-lite";
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new VisionProviderError("Live reflection is not connected yet.", { provider, model, providerCode: "missing_gemini_api_key" });
+  let response: Response;
+  try {
+    response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey, "Api-Revision": "2026-05-20" },
+      signal: AbortSignal.timeout(60_000),
+      body: JSON.stringify({ model, input: [{ type: "text", text: prompt }], response_format: { type: "text", mime_type: "application/json", schema } }),
+    });
+  } catch (error) {
+    throw new VisionProviderError("The reflection service timed out or could not be reached.", { provider, model, providerCode: error instanceof Error ? error.name : "transport_error" });
+  }
+  const result = await parseProviderResponse(response, provider, model);
+  return { outputText: extractText(result, "steps", "text"), providerRequestId: response.headers.get("x-request-id") ?? response.headers.get("x-guploader-uploadid") };
+}
+
+async function analyseTextWithOpenAI(prompt: string, schema: unknown, schemaName: string): Promise<ProviderResult> {
+  const provider = "openai" as const;
+  const model = process.env.OPENAI_VISION_MODEL ?? "gpt-5.4-mini";
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new VisionProviderError("Live reflection is not connected yet.", { provider, model, providerCode: "missing_openai_api_key" });
+  let response: Response;
+  try {
+    response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(60_000),
+      body: JSON.stringify({
+        model,
+        store: false,
+        input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
+        text: { format: { type: "json_schema", name: schemaName, strict: true, schema } },
+        max_output_tokens: 1800,
+      }),
+    });
+  } catch (error) {
+    throw new VisionProviderError("The reflection service timed out or could not be reached.", { provider, model, providerCode: error instanceof Error ? error.name : "transport_error" });
+  }
+  const result = await parseProviderResponse(response, provider, model);
+  return { outputText: extractText(result, "output", "output_text"), providerRequestId: response.headers.get("x-request-id") };
+}
+
 export function selectedVisionProvider(): VisionProvider {
   const configured = (process.env.VISION_PROVIDER ?? "gemini").toLowerCase();
   if (configured === "gemini" || configured === "openai") return configured;
@@ -278,6 +324,13 @@ export async function analyseStructuredImage(input: {
   return provider === "gemini"
     ? analyseWithGemini(input.imageBase64, input.mimeType, input.prompt, input.schema)
     : analyseWithOpenAI(input.imageBase64, input.mimeType, input.prompt, input.schema, input.schemaName);
+}
+
+export async function analyseStructuredText(input: { prompt: string; schema: unknown; schemaName: string }) {
+  const provider = selectedVisionProvider();
+  return provider === "gemini"
+    ? analyseTextWithGemini(input.prompt, input.schema)
+    : analyseTextWithOpenAI(input.prompt, input.schema, input.schemaName);
 }
 
 export async function analyseWardrobeImage(imageBase64: string, mimeType: string) {

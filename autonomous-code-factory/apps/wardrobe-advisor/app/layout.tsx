@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Closet Compass — shop what your wardrobe needs",
-  description: "Photograph your wardrobe, understand your visible style and discover versatile pieces that fill useful gaps.",
+  title: "Closet Compass — wardrobe, photos and private reflection",
+  description: "Review your wardrobe, improve profile photos and create a private daily self-reflection from moments you intentionally save.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

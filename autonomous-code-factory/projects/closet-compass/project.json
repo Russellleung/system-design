@@ -3,7 +3,7 @@
   "slug": "closet-compass",
   "name": "Closet Compass",
   "status": "deployed",
-  "demoJourney": "On a phone, either photograph a wardrobe to review its visible inventory and gaps, or open Photo Coach to receive angle, pose, framing and lighting suggestions with an optional dotted retake guide.",
+  "demoJourney": "On a phone, photograph a wardrobe, coach or evaluate a profile photo, or collect private daily entries and export an editable Markdown self-reflection.",
   "acceptanceCriteria": [
     "A phone user can capture or select an image under 10 MB.",
     "With a configured vision-provider key, the server returns grounded visible garments, style and exactly three gaps.",
@@ -11,7 +11,9 @@
     "The user can correct or remove detected garments before following recommendations.",
     "A user can upload a portrait, receive technique-only coaching and optionally display or mirror a deterministic dotted pose guide.",
     "Photo Coach does not score appearance or infer sensitive personal traits.",
-    "The public health endpoint, homepage and Photo Coach smoke tests pass for the deployed commit."
+    "An adult user can receive a 1-10 dating-profile photo-effectiveness score without scoring physical attractiveness.",
+    "Digital Twin stores entries and photos locally, sends only written evidence for synthesis, and exports an editable Markdown reflection.",
+    "The public health endpoint and all four product pages pass smoke tests for the deployed commit."
   ],
   "budgets": {
     "currency": "USD",
@@ -30,7 +32,7 @@
     "createFreeResources": false,
     "createPaidResources": false,
     "deployPreview": true,
-    "deployProduction": false,
+    "deployProduction": true,
     "modifySecrets": false
   },
   "verification": {
