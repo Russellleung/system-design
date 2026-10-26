@@ -19,6 +19,12 @@ export type StyleUpgrade = {
   why: string;
 };
 
+export type AppearanceFeature = {
+  feature: string;
+  observation: string;
+  photoEffect: string;
+};
+
 export type DatingPhotoRating = {
   usableAsDatingPhoto: boolean;
   overallScore: number;
@@ -26,6 +32,8 @@ export type DatingPhotoRating = {
   bestUse: "Lead photo" | "Supporting photo" | "Retake";
   firstImpressions: string[];
   dimensions: RatingDimension[];
+  facialFeatures: AppearanceFeature[];
+  bodyFeatures: AppearanceFeature[];
   attractiveFeatures: string[];
   lessAttractiveFeatures: string[];
   likelyLikes: string[];
@@ -46,7 +54,7 @@ export type DatingPhotoRating = {
 const ratingSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["usableAsDatingPhoto", "overallScore", "verdict", "bestUse", "firstImpressions", "dimensions", "attractiveFeatures", "lessAttractiveFeatures", "likelyLikes", "likelyDislikes", "appearanceProfile", "styleUpgrades", "strengths", "improvements", "referenceSearches", "confidenceNote"],
+  required: ["usableAsDatingPhoto", "overallScore", "verdict", "bestUse", "firstImpressions", "dimensions", "facialFeatures", "bodyFeatures", "attractiveFeatures", "lessAttractiveFeatures", "likelyLikes", "likelyDislikes", "appearanceProfile", "styleUpgrades", "strengths", "improvements", "referenceSearches", "confidenceNote"],
   properties: {
     usableAsDatingPhoto: { type: "boolean" },
     overallScore: { type: "number", minimum: 1, maximum: 10 },
@@ -65,6 +73,36 @@ const ratingSchema = {
           name: { type: "string", enum: ["Face", "Body & presence", "Style", "Photo quality", "Dating appeal"] },
           score: { type: "number", minimum: 0, maximum: 10 },
           note: { type: "string" },
+        },
+      },
+    },
+    facialFeatures: {
+      type: "array",
+      minItems: 8,
+      maxItems: 8,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["feature", "observation", "photoEffect"],
+        properties: {
+          feature: { type: "string", enum: ["Facial balance", "Eyes & brows", "Nose & midface", "Mouth & smile", "Jaw, chin & face shape", "Ears", "Skin presentation", "Hair & grooming"] },
+          observation: { type: "string" },
+          photoEffect: { type: "string" },
+        },
+      },
+    },
+    bodyFeatures: {
+      type: "array",
+      minItems: 4,
+      maxItems: 4,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["feature", "observation", "photoEffect"],
+        properties: {
+          feature: { type: "string", enum: ["Shoulders & posture", "Torso & proportions", "Overall silhouette", "Clothing fit"] },
+          observation: { type: "string" },
+          photoEffect: { type: "string" },
         },
       },
     },
@@ -126,6 +164,10 @@ Be unsparing, specific, colloquial and useful. Lead the verdict with the most im
 
 Write firstImpressions as four to six short, natural reactions from an observant friend. Each reaction must name a concrete visible detail and its effect. Mix genuine enthusiasm and criticism when the image supports both. Good specificity sounds like: "Okay, that smile is warm—you look instantly approachable," "That shirt colour really works with the rest of the shot," or "The harsh light is exaggerating every bit of skin texture." Do not reuse those examples unless they are genuinely visible. Avoid vague filler such as "nice photo," "you look good," "improve grooming," or "great style." If hair, smile, eyes, facial hair, accessories, a particular garment, posture, skin texture, shine, flaking or a visible blemish stands out, say so plainly. Describe only visible appearance; do not diagnose a skin condition. Suggest only low-risk, reversible photo preparation, and never advise squeezing, picking or popping a blemish.
 
+Create facialFeatures in this exact order: Facial balance, Eyes & brows, Nose & midface, Mouth & smile, Jaw, chin & face shape, Ears, Skin presentation, Hair & grooming. For each, observation must describe the concrete visible feature and photoEffect must say whether and how it helps or hurts this particular image. Direct descriptions such as visibly balanced or asymmetric presentation, prominent or close-set ears, narrow-looking or squinting eyes, sparse or strong brows, a broad or narrow nose, thin or full lips, a soft or defined jaw, visible skin texture, and flat or voluminous hair are allowed when genuinely visible. Never fabricate measurements or pretend one photo proves permanent anatomical symmetry. Explicitly distinguish natural-looking structure from effects caused by expression, lens distortion, head angle, shadows, hair coverage or low resolution. If a feature is obscured, say "Not clear from this photo" in both fields instead of guessing.
+
+Create bodyFeatures in this exact order: Shoulders & posture, Torso & proportions, Overall silhouette, Clothing fit. Use neutral concrete visual descriptions. Explain whether pose, lens, loose clothing or cropping limits the judgment. Do not estimate weight, body-fat percentage, health, fitness or measurements.
+
 In attractiveFeatures and lessAttractiveFeatures, directly name the visible facial, body-presentation, grooming and styling features that increase or reduce this photo's appeal. Explain the effect of each feature instead of merely labelling it attractive or unattractive. Do not turn temporary photo problems such as bad light into claims about the person's permanent appearance.
 
 In likelyLikes and likelyDislikes, describe what some adult women browsing a dating profile may respond positively or negatively to in this specific image. Be candid, but never claim that women are a monolith or that any reaction is guaranteed. Focus on observable presentation signals such as warmth, confidence, authenticity, grooming, style, posture, effort and photo context. Do not infer sexual preferences or use stereotypes.
@@ -171,6 +213,8 @@ export function parseDatingPhotoRating(outputText: string): DatingPhotoRating | 
         && typeof row.score === "number" && row.score >= 0 && row.score <= 10
         && isText(row.note);
     })
+    || !validFeatureList(item.facialFeatures, ["Facial balance", "Eyes & brows", "Nose & midface", "Mouth & smile", "Jaw, chin & face shape", "Ears", "Skin presentation", "Hair & grooming"])
+    || !validFeatureList(item.bodyFeatures, ["Shoulders & posture", "Torso & proportions", "Overall silhouette", "Clothing fit"])
     || !Array.isArray(item.attractiveFeatures) || item.attractiveFeatures.length < 2 || item.attractiveFeatures.length > 4 || !item.attractiveFeatures.every(isText)
     || !Array.isArray(item.lessAttractiveFeatures) || item.lessAttractiveFeatures.length < 2 || item.lessAttractiveFeatures.length > 4 || !item.lessAttractiveFeatures.every(isText)
     || !Array.isArray(item.likelyLikes) || item.likelyLikes.length < 2 || item.likelyLikes.length > 4 || !item.likelyLikes.every(isText)
@@ -192,4 +236,12 @@ export function parseDatingPhotoRating(outputText: string): DatingPhotoRating | 
     })
     || !isText(item.confidenceNote)) return null;
   return item as DatingPhotoRating;
+}
+
+function validFeatureList(value: unknown, names: string[]) {
+  return Array.isArray(value) && value.length === names.length && value.every((feature, index) => {
+    if (typeof feature !== "object" || feature === null) return false;
+    const row = feature as Record<string, unknown>;
+    return row.feature === names[index] && isText(row.observation) && isText(row.photoEffect);
+  });
 }

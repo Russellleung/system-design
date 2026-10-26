@@ -239,7 +239,7 @@ async function analyseWithOpenAI(
             schema,
           },
         },
-        max_output_tokens: 1800,
+        max_output_tokens: schemaName === "dating_photo_rating" ? 3200 : 1800,
       }),
     });
   } catch (error) {
