@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-26T15:11:39+08:00
+Updated: 2026-10-26T15:29:52+08:00
 
 ## Working now
 
@@ -20,10 +20,12 @@ Updated: 2026-10-26T15:11:39+08:00
 - Rate Me generates three non-identifying image-search references for grooming/face presentation, outfit/body pose and setting/composition. Search providers receive only the text query after the user opens a link, not the uploaded photo.
 - Rate Me also gives tentative face-shape, body-silhouette, colour and haircut direction, then produces searchable shirt/top, pants/bottoms, palette and haircut upgrades with reasons.
 - Rate Me now separates camera capture from Photos/local-file selection and opens an optional client-side cropper with 4:5 or square framing, zoom and horizontal/vertical focal-position controls. The user can also keep the original.
-- Rate Me now requires a feature-by-feature explanation of facial balance, eyes/brows, nose/midface, mouth/smile, jaw/chin/face shape, ears, skin presentation, hair/grooming, shoulders/posture, torso/proportions, silhouette and clothing fit. Every visible feature carries an explicit Attractive, Mixed or Unattractive badge plus a colloquial, opinionated friend take; obscured features must be marked Not judgeable.
+- Rate Me now requires a feature-by-feature explanation of facial balance, eyes/brows, nose/midface, mouth/expression, jaw/chin/face shape, ears, skin presentation, hair/grooming, shoulders/posture, torso/proportions, silhouette and clothing fit. Every visible feature carries an explicit Attractive, Mixed or Unattractive badge plus a colloquial, opinionated friend take; obscured features must be marked Not judgeable.
+- Rate Me displays separate physical-attractiveness and dating-photo-effectiveness scores with separate verdicts. Its prompt explicitly treats smiling, neutral, serious and moody expressions as potentially attractive when they work, rather than rewarding smiles by default.
+- Rate Me gives a broad apparent-age range with visible presentation reasons and labels it as how old the adult looks in this photo, not their actual age.
 - A new `/digital-twin` tab stores voluntary thoughts and optional photos in browser-local IndexedDB, sends only written entries and photo filenames for provisional synthesis, and exports Markdown.
 - Navigation and smoke coverage include all four product tabs.
-- Commit `2865bbe` is deployed to the existing Render production service as deploy `dep-dbffpi7b9u1s73cplapg`.
+- Commit `433a31b` is deployed to the existing Render production service as deploy `dep-dbfg20gae00c73fv6nl0`.
 
 ## In progress
 
@@ -79,6 +81,9 @@ Updated: 2026-10-26T15:11:39+08:00
 | `2865bbe` | Local Node 23 / Docker Node 22 | Project validation, ESLint, production build, image build and all five route smoke tests | Passed |
 | `2865bbe` | Render | deploy `dep-dbffpi7b9u1s73cplapg` | Live |
 | `2865bbe` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me` and `/digital-twin` smoke tests | Passed |
+| `433a31b` | Local Node 23 / Docker Node 22 | Project validation, ESLint, production build, image build and all five route smoke tests | Passed |
+| `433a31b` | Render | deploy `dep-dbfg20gae00c73fv6nl0` | Live |
+| `433a31b` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me` and `/digital-twin` smoke tests | Passed |
 
 ## Live resources
 
@@ -88,4 +93,4 @@ Updated: 2026-10-26T15:11:39+08:00
 
 ## Next action
 
-With a consenting adult-owned test portrait, verify that the live model uses the new explicit appeal badges and genuinely human friend takes rather than clinical boilerplate. Also complete the outstanding phone crop, generated-search and Digital Twin persistence/export/clear checks.
+With consenting adult-owned smiling and non-smiling portraits, verify that the live model keeps physical attractiveness separate from photo effectiveness, does not reward smiles by default, and gives a plausible broad apparent-age range without claiming an exact age. Also complete the outstanding phone crop, generated-search and Digital Twin persistence/export/clear checks.
