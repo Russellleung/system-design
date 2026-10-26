@@ -20,10 +20,13 @@ A visitor chooses one of four tabs. Wardrobe analysis inventories visible clothi
 - [x] Display, hide and mirror a deterministic dotted pose guide.
 - [x] Restrict Photo Coach to photographic technique rather than appearance or sensitive-trait judgments.
 - [x] Score visible face, body presence, style, photo quality and dating appeal from 1–10 after explicit adult consent.
+- [x] Show separate physical-attractiveness and dating-photo-effectiveness scores so poor photography does not silently become a judgment of the person.
+- [x] Give a broad apparent-age range with visible reasons, never an exact or claimed real age.
+- [x] Judge whether an expression works without treating smiling or showing teeth as inherently more attractive.
 - [x] Let Rate Me users take a photo or choose one from Photos/local files, then crop it to portrait or square with adjustable zoom and focal position.
 - [x] Make Rate Me candid and colloquial about both genuine strengths and weaknesses without protected-trait inference, sexualisation, humiliation or claims about universal preferences.
 - [x] Explain concrete first impressions such as hair, smile, clothing, posture, lighting and visible skin presentation instead of returning only scores or generic praise.
-- [x] Require feature-by-feature observations for facial balance, eyes/brows, nose, mouth/smile, jaw/face shape, ears, skin, hair, posture, proportions, silhouette and clothing fit.
+- [x] Require feature-by-feature observations for facial balance, eyes/brows, nose, mouth/expression, jaw/face shape, ears, skin, hair, posture, proportions, silhouette and clothing fit.
 - [x] Give every visible face/body feature an explicit attractive, mixed or unattractive verdict followed by a plainspoken, opinionated friend take rather than clinical filler.
 - [x] Explain visible attractive and less-attractive features plus possible positive and negative reactions from adult women without claiming universal preferences.
 - [x] Generate three non-identifying reference-image searches for grooming, styling/pose and setting; send only search text when the user opens a provider link.
@@ -37,7 +40,7 @@ A visitor chooses one of four tabs. Wardrobe analysis inventories visible clothi
 
 ## Boundaries
 
-One photo is not treated as the complete wardrobe or a complete account of a person. Photo Coach does not infer attractiveness or sensitive traits. Rate Me may directly judge a consenting adult's visible face, body presentation, style and dating appeal in that image, but does not infer protected traits, exact weight, health or identity; sexualise the person; recommend dangerous bodily changes; promise matches; or claim all women share a preference. Reference searches use generic visible descriptors and never upload the user's photo to a search provider or attempt identity/lookalike matching. Digital Twin stores voluntary entries and photos only in the user's browser; synthesis is provisional and based on authored words rather than appearance. Wardrobe and rating uploads are not persisted by the application. Shopping links are searches, not claims of live stock or price. Supabase remains unprovisioned until cross-device persistence or accounts are accepted scope.
+One photo is not treated as the complete wardrobe or a complete account of a person. Photo Coach does not infer attractiveness or sensitive traits. Rate Me may directly judge a consenting adult's visible face, body presentation, physical attractiveness, style and dating appeal in that image, and may estimate only a broad apparent-age band; it does not claim the person's real or exact age, infer protected traits, exact weight, health or identity, sexualise the person, recommend dangerous bodily changes, promise matches, or claim all women share a preference. Reference searches use generic visible descriptors and never upload the user's photo to a search provider or attempt identity/lookalike matching. Digital Twin stores voluntary entries and photos only in the user's browser; synthesis is provisional and based on authored words rather than appearance. Wardrobe and rating uploads are not persisted by the application. Shopping links are searches, not claims of live stock or price. Supabase remains unprovisioned until cross-device persistence or accounts are accepted scope.
 
 ## Current stack
 

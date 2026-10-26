@@ -11,6 +11,12 @@ const demoRating: DatingPhotoRating = {
   overallScore: 6.2,
   verdict: "The lighting is doing your face no favours, and the stiff pose makes the whole thing feel like an office ID photo. You look perfectly dateable; this particular shot is just leaving points on the table.",
   bestUse: "Supporting photo",
+  attractivenessScore: 6.9,
+  attractivenessVerdict: "You are visibly attractive: balanced features, good hair and a smile that lands. The photo makes you look flatter and more awkward than you need to, but that is the shot failing you—not your face.",
+  apparentAge: {
+    range: "25–34",
+    note: "You read in this broad range here. The textured skin from the overhead light pushes older while the haircut and open expression pull younger; this is not your actual age.",
+  },
   firstImpressions: [
     "Okay, the smile is genuinely warm—that is the first thing making you feel approachable.",
     "Your hair has shape and volume instead of sitting flat. Keep that.",
@@ -28,7 +34,7 @@ const demoRating: DatingPhotoRating = {
     { feature: "Facial balance", observation: "Your features look fairly even head-on, although this flat angle hides most of the natural contour.", appeal: "Attractive", friendTake: "Yes, I like the balance. Your face is easy on the eye; the boring straight-on angle is the problem, not your structure." },
     { feature: "Eyes & brows", observation: "Your eyes look slightly narrowed while the brows are naturally full and tidy.", appeal: "Mixed", friendTake: "The brows are good—keep them. The squint is not cute, though; it makes you look guarded when the smile says the opposite." },
     { feature: "Nose & midface", observation: "Your nose reads straight and proportional, with a hard overhead shadow beneath it.", appeal: "Attractive", friendTake: "Honestly, the nose suits your face. I like it. The ugly bit is that restaurant shadow making the middle of your face look harsher than it is." },
-    { feature: "Mouth & smile", observation: "You have a broad, genuine smile that shows the upper teeth and reaches the cheeks.", appeal: "Attractive", friendTake: "This is your winner. The smile is properly cute and makes you look fun immediately—it is carrying the photo." },
+    { feature: "Mouth & expression", observation: "You have a broad, genuine smile that shows the upper teeth and reaches the cheeks.", appeal: "Attractive", friendTake: "This expression works because it looks genuine, not because teeth are automatically attractive. It is properly cute and makes you look fun immediately." },
     { feature: "Jaw, chin & face shape", observation: "The jaw looks softly rectangular, but the front-facing lens and forward posture flatten its edges.", appeal: "Mixed", friendTake: "Not ugly, just underwhelming here. You do have shape, but this angle turns it soft and passport-like. Turn slightly and give the jaw a chance." },
     { feature: "Ears", observation: "Your ears are clearly visible because the hair is shorter at the sides.", appeal: "Mixed", friendTake: "They stick out a little. I do notice them, but they are not a deal-breaker; the short sides simply put them on display more than necessary." },
     { feature: "Skin presentation", observation: "The overhead light picks up shine and visible texture across the face.", appeal: "Unattractive", friendTake: "I don't like how the skin photographs here. The shine and texture grab attention, but I blame this brutal lighting more than your actual skin." },
@@ -199,8 +205,14 @@ export default function RateMePage() {
               <button disabled={!confirmedAdult || status === "analysing"} onClick={ratePhoto} className="mt-7 flex w-full items-center justify-center gap-2 rounded-full bg-[#fff8ef] px-5 py-3.5 font-semibold text-[#49396d] disabled:opacity-50">{status === "analysing" ? <><LoaderCircle className="animate-spin" size={18}/> Rating photo…</> : <><Star size={18}/> Rate this photo</>}</button>
               {status === "error" && <div className="mt-5 rounded-2xl bg-black/15 p-4 text-sm"><p>{message}</p><button onClick={() => { setRating(demoRating); setStatus("review"); setMessage(""); }} className="mt-3 font-semibold underline underline-offset-4">Preview labelled demo rating</button></div>}
             </> : <>
-              <div className="flex items-end justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d8cfea]">Overall pull</p><p className="mt-3 font-serif text-8xl leading-none">{rating.overallScore.toFixed(1)}</p></div><span className="rounded-full bg-white/15 px-4 py-2 text-sm font-semibold">{rating.bestUse}</span></div>
-              <p className="mt-7 text-lg leading-7">{rating.verdict}</p>
+              <div className="flex justify-end"><span className="rounded-full bg-white/15 px-4 py-2 text-sm font-semibold">{rating.bestUse}</span></div>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-black/15 p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#d8cfea]">Physical attractiveness</p><p className="mt-2 font-serif text-6xl leading-none">{rating.attractivenessScore === 0 ? "N/A" : rating.attractivenessScore.toFixed(1)}</p><p className="mt-1 text-xs text-[#d8cfea]">out of 10</p></div>
+                <div className="rounded-2xl bg-black/15 p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#d8cfea]">Dating-photo effectiveness</p><p className="mt-2 font-serif text-6xl leading-none">{rating.overallScore.toFixed(1)}</p><p className="mt-1 text-xs text-[#d8cfea]">out of 10</p></div>
+              </div>
+              <div className="mt-5 rounded-2xl bg-white/10 p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#d8cfea]">The person</p><p className="mt-2 text-sm leading-6">{rating.attractivenessVerdict}</p></div>
+              <div className="mt-3 rounded-2xl bg-white/10 p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#d8cfea]">The photo</p><p className="mt-2 text-sm leading-6">{rating.verdict}</p></div>
+              <div className="mt-3 rounded-2xl border border-white/15 p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#d8cfea]">How old you look here · {rating.apparentAge.range}</p><p className="mt-2 text-sm leading-5 text-[#eee9f7]">{rating.apparentAge.note}</p></div>
               <div className="mt-7 grid gap-2">{rating.dimensions.map((dimension) => <div key={dimension.name} className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 rounded-xl bg-black/10 px-4 py-3"><span className="text-sm font-semibold">{dimension.name}</span><strong>{dimension.score === 0 ? "N/A" : dimension.score.toFixed(1)}</strong><p className="col-span-2 text-sm leading-5 text-[#eee9f7]">{dimension.note}</p></div>)}</div>
               <p className="mt-auto pt-7 text-xs leading-5 text-[#d8cfea]">{rating.confidenceNote}</p>
             </>}
