@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-26T10:03:41+08:00
+Updated: 2026-10-26T14:20:04+08:00
 
 ## Working now
 
@@ -16,10 +16,12 @@ Updated: 2026-10-26T10:03:41+08:00
 - The photo-ready UI discloses Gemini free-tier data use before submission.
 - A second `/photo-coach` tab provides technique-only angle, pose, framing and lighting advice.
 - Photo Coach can display, hide and mirror a deterministic dotted SVG pose guide selected from validated templates.
-- A new `/rate-me` tab scores visible face presentation, body presence, style, photo quality and dating appeal after explicit adult consent. It now surfaces four to six concrete first impressions about details such as hair, smile, clothing, posture, lighting and visible skin presentation, plus an explanation under every score.
+- A new `/rate-me` tab scores visible face presentation, body presence, style, photo quality and dating appeal after explicit adult consent. It surfaces concrete first impressions, attractive and less-attractive visible features, possible positive and negative reactions from women, and explanations under every score.
+- Rate Me generates three non-identifying image-search references for grooming/face presentation, outfit/body pose and setting/composition. Search providers receive only the text query after the user opens a link, not the uploaded photo.
+- Rate Me also gives tentative face-shape, body-silhouette, colour and haircut direction, then produces searchable shirt/top, pants/bottoms, palette and haircut upgrades with reasons.
 - A new `/digital-twin` tab stores voluntary thoughts and optional photos in browser-local IndexedDB, sends only written entries and photo filenames for provisional synthesis, and exports Markdown.
 - Navigation and smoke coverage include all four product tabs.
-- Commit `aa78dc5` is deployed to the existing Render production service as deploy `dep-dbfb9atg1s2s73f576p0`.
+- Commit `046d65a` is deployed to the existing Render production service as deploy `dep-dbff194s728c73f6s4e0`.
 
 ## In progress
 
@@ -60,6 +62,12 @@ Updated: 2026-10-26T10:03:41+08:00
 | `aa78dc5` | Local Node 23 / Docker Node 22 | Project validation, ESLint, production build, image build and all five route smoke tests | Passed |
 | `aa78dc5` | Render | deploy `dep-dbfb9atg1s2s73f576p0` | Live |
 | `aa78dc5` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me` and `/digital-twin` smoke tests | Passed |
+| `81a8bb0` | Local Node 23 / Docker Node 22 | Project validation, ESLint, production build, image build and all five route smoke tests | Passed |
+| `81a8bb0` | Render | deploy `dep-dbfeuso473hc73cu3nhg` | Live |
+| `81a8bb0` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me` and `/digital-twin` smoke tests | Passed |
+| `046d65a` | Local Node 23 / Docker Node 22 | Project validation, ESLint, production build, image build and all five route smoke tests | Passed |
+| `046d65a` | Render | deploy `dep-dbff194s728c73f6s4e0` | Live |
+| `046d65a` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me` and `/digital-twin` smoke tests | Passed |
 
 ## Live resources
 
@@ -69,4 +77,4 @@ Updated: 2026-10-26T10:03:41+08:00
 
 ## Next action
 
-On a real phone, verify that Rate Me's first-impression cards name concrete, genuinely visible details for a consenting adult-owned test portrait. Also verify that Digital Twin entries persist after refresh, export valid Markdown and disappear after Clear all.
+On a real phone, verify the expanded Rate Me response and confirm that its generated Google Images, Google Shopping and Unsplash links open useful searches for a consenting adult-owned test portrait. Also verify that Digital Twin entries persist after refresh, export valid Markdown and disappear after Clear all.
