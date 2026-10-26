@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-26T14:47:23+08:00
+Updated: 2026-10-26T15:11:39+08:00
 
 ## Working now
 
@@ -20,10 +20,10 @@ Updated: 2026-10-26T14:47:23+08:00
 - Rate Me generates three non-identifying image-search references for grooming/face presentation, outfit/body pose and setting/composition. Search providers receive only the text query after the user opens a link, not the uploaded photo.
 - Rate Me also gives tentative face-shape, body-silhouette, colour and haircut direction, then produces searchable shirt/top, pants/bottoms, palette and haircut upgrades with reasons.
 - Rate Me now separates camera capture from Photos/local-file selection and opens an optional client-side cropper with 4:5 or square framing, zoom and horizontal/vertical focal-position controls. The user can also keep the original.
-- Rate Me now requires a feature-by-feature explanation of facial balance, eyes/brows, nose/midface, mouth/smile, jaw/chin/face shape, ears, skin presentation, hair/grooming, shoulders/posture, torso/proportions, silhouette and clothing fit. Each observation explains its visible effect and must acknowledge angle, lighting or occlusion limits.
+- Rate Me now requires a feature-by-feature explanation of facial balance, eyes/brows, nose/midface, mouth/smile, jaw/chin/face shape, ears, skin presentation, hair/grooming, shoulders/posture, torso/proportions, silhouette and clothing fit. Every visible feature carries an explicit Attractive, Mixed or Unattractive badge plus a colloquial, opinionated friend take; obscured features must be marked Not judgeable.
 - A new `/digital-twin` tab stores voluntary thoughts and optional photos in browser-local IndexedDB, sends only written entries and photo filenames for provisional synthesis, and exports Markdown.
 - Navigation and smoke coverage include all four product tabs.
-- Commit `99a1135` is deployed to the existing Render production service as deploy `dep-dbffe5vb9u1s73cod3og`.
+- Commit `2865bbe` is deployed to the existing Render production service as deploy `dep-dbffpi7b9u1s73cplapg`.
 
 ## In progress
 
@@ -76,6 +76,9 @@ Updated: 2026-10-26T14:47:23+08:00
 | `99a1135` | Local Node 23 / Docker Node 22 | Project validation, ESLint, production build, image build and all five route smoke tests | Passed |
 | `99a1135` | Render | deploy `dep-dbffe5vb9u1s73cod3og` | Live |
 | `99a1135` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me` and `/digital-twin` smoke tests | Passed |
+| `2865bbe` | Local Node 23 / Docker Node 22 | Project validation, ESLint, production build, image build and all five route smoke tests | Passed |
+| `2865bbe` | Render | deploy `dep-dbffpi7b9u1s73cplapg` | Live |
+| `2865bbe` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me` and `/digital-twin` smoke tests | Passed |
 
 ## Live resources
 
@@ -85,4 +88,4 @@ Updated: 2026-10-26T14:47:23+08:00
 
 ## Next action
 
-With a consenting adult-owned test portrait, verify that every required facial/body feature receives a genuinely photo-grounded observation rather than boilerplate. Also complete the outstanding phone crop, generated-search and Digital Twin persistence/export/clear checks.
+With a consenting adult-owned test portrait, verify that the live model uses the new explicit appeal badges and genuinely human friend takes rather than clinical boilerplate. Also complete the outstanding phone crop, generated-search and Digital Twin persistence/export/clear checks.
