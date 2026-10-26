@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-26T22:02:53+08:00
+Updated: 2026-10-26T22:13:37+08:00
 
 ## Working now
 
@@ -13,9 +13,7 @@ Updated: 2026-10-26T22:02:53+08:00
 - Vision failures now return a safe request reference and log structured provider diagnostics without logging the photo or API key.
 - Vision analysis is provider-neutral: Gemini is the default and OpenAI remains a configurable fallback.
 - Gemini uses `gemini-3.5-flash-lite`, structured output and server-side semantic validation.
-- Rate Me sends Gemini a reduced structural schema because the full nested schema exceeded Gemini's serving-state limit; the complete score, category, order and length rules remain enforced in server code.
-- Rate Me deterministically orders named rows, derives score labels and physical/controllable classifications, trims harmless extra list items, and permits one genuine positive or negative observation instead of forcing the model to invent a second.
-- Invalid model output logs privacy-safe structural diagnostics such as field names and list counts, never the uploaded image or written appearance feedback.
+- Rate Me has been rolled back exactly to its last pre-regression implementation from commit `433a31b`. The later per-feature numeric scores and physical-versus-controllable presentation split are intentionally absent.
 - The photo-ready UI discloses Gemini free-tier data use before submission.
 - A second `/photo-coach` tab provides technique-only angle, pose, framing and lighting advice.
 - Photo Coach can display, hide and mirror a deterministic dotted SVG pose guide selected from validated templates.
@@ -24,16 +22,15 @@ Updated: 2026-10-26T22:02:53+08:00
 - Rate Me also gives tentative face-shape, body-silhouette, colour and haircut direction, then produces searchable shirt/top, pants/bottoms, palette and haircut upgrades with reasons.
 - Rate Me now separates camera capture from Photos/local-file selection and opens an optional client-side cropper with 4:5 or square framing, zoom and horizontal/vertical focal-position controls. The user can also keep the original.
 - Rate Me now requires a feature-by-feature explanation of facial balance, eyes/brows, nose/midface, mouth/lips, jaw/chin/face shape, ears, skin appearance, hair/grooming, facial expression/tension, shoulder structure, torso/proportions, silhouette, body pose and clothing fit. Every visible feature carries a calibrated score plus an Attractive, Mixed or Unattractive badge and colloquial friend take; obscured features must be marked Not judgeable with no fake score.
-- Feature cards are split into Physical feature and Controllable presentation groups. Physical anatomy and skin are not presented as defects to fix; their actions are limited to optional photographic presentation. Expression, haircut, grooming, posture, pose and clothing receive direct retake actions.
 - Rate Me displays separate physical-attractiveness and dating-photo-effectiveness scores with separate verdicts. Its prompt explicitly treats smiling, neutral, serious and moody expressions as potentially attractive when they work, rather than rewarding smiles by default.
 - Rate Me gives a broad apparent-age range with visible presentation reasons and labels it as how old the adult looks in this photo, not their actual age.
 - A new `/digital-twin` tab stores voluntary thoughts and optional photos in browser-local IndexedDB, sends only written entries and photo filenames for provisional synthesis, and exports Markdown.
 - Navigation and smoke coverage include all four product tabs.
-- Commit `7a573c6` is deployed to the existing Render production service as deploy `dep-dbflpvajnfac73crp23g`.
+- Rollback commit `28e9bda` is deployed to the existing Render production service as deploy `dep-dbflv4u7bikc73e2lk6g`.
 
 ## In progress
 
-- Re-test Rate Me with the consenting adult portrait that previously produced the Gemini schema error.
+- Re-test the rolled-back Rate Me with the consenting adult portrait that previously failed.
 
 ## Blocked or awaiting decisions
 
@@ -100,6 +97,9 @@ Updated: 2026-10-26T22:02:53+08:00
 | `7a573c6` | Local Node 23 / Docker Node 22 | ESLint, production build, image build and all five route smoke tests | Passed |
 | `7a573c6` | Render | deploy `dep-dbflpvajnfac73crp23g` | Live |
 | `7a573c6` | Render public URL and API | All five route smoke tests and fictional illustrated-adult `/api/rate-me` probe | Passed; complete validated rating returned |
+| `28e9bda` | Local Node 23 / Docker Node 22 | Release preflight, ESLint, production build, image build and all five route smoke tests | Passed |
+| `28e9bda` | Render | deploy `dep-dbflv4u7bikc73e2lk6g` | Live |
+| `28e9bda` | Render public URL and API | All five route smoke tests and fictional illustrated-adult `/api/rate-me` probe | Passed; HTTP 200 with complete rating |
 
 ## Live resources
 
