@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-26T21:48:37+08:00
+Updated: 2026-10-26T22:02:53+08:00
 
 ## Working now
 
@@ -14,6 +14,8 @@ Updated: 2026-10-26T21:48:37+08:00
 - Vision analysis is provider-neutral: Gemini is the default and OpenAI remains a configurable fallback.
 - Gemini uses `gemini-3.5-flash-lite`, structured output and server-side semantic validation.
 - Rate Me sends Gemini a reduced structural schema because the full nested schema exceeded Gemini's serving-state limit; the complete score, category, order and length rules remain enforced in server code.
+- Rate Me deterministically orders named rows, derives score labels and physical/controllable classifications, trims harmless extra list items, and permits one genuine positive or negative observation instead of forcing the model to invent a second.
+- Invalid model output logs privacy-safe structural diagnostics such as field names and list counts, never the uploaded image or written appearance feedback.
 - The photo-ready UI discloses Gemini free-tier data use before submission.
 - A second `/photo-coach` tab provides technique-only angle, pose, framing and lighting advice.
 - Photo Coach can display, hide and mirror a deterministic dotted SVG pose guide selected from validated templates.
@@ -27,7 +29,7 @@ Updated: 2026-10-26T21:48:37+08:00
 - Rate Me gives a broad apparent-age range with visible presentation reasons and labels it as how old the adult looks in this photo, not their actual age.
 - A new `/digital-twin` tab stores voluntary thoughts and optional photos in browser-local IndexedDB, sends only written entries and photo filenames for provisional synthesis, and exports Markdown.
 - Navigation and smoke coverage include all four product tabs.
-- Commit `cde9e72` is deployed to the existing Render production service as deploy `dep-dbflih0m7kps739ijigg`.
+- Commit `7a573c6` is deployed to the existing Render production service as deploy `dep-dbflpvajnfac73crp23g`.
 
 ## In progress
 
@@ -92,6 +94,12 @@ Updated: 2026-10-26T21:48:37+08:00
 | `cde9e72` | Render | deploy `dep-dbflih0m7kps739ijigg` | Live |
 | `cde9e72` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me` and `/digital-twin` smoke tests | Passed |
 | `cde9e72` | Render public API | Synthetic non-person and illustrated-person `/api/rate-me` probes | Gemini accepted the reduced schema; both intentionally non-photographic inputs reached server validation but returned `502` as incomplete, so a real consenting-adult photo remains the end-to-end check |
+| `1fb574f` | Local Node 23 / Docker Node 22 | Release preflight, ESLint, production build, image build and all five route smoke tests | Passed |
+| `1fb574f` | Render | deploy `dep-dbflnqgu01pc73bnvo1g` | Live, then superseded |
+| `1fb574f` | Render public API | Fictional illustrated-adult `/api/rate-me` probe plus privacy-safe validation log | Located the remaining mismatch: one genuine attractive feature versus an artificial minimum of two |
+| `7a573c6` | Local Node 23 / Docker Node 22 | ESLint, production build, image build and all five route smoke tests | Passed |
+| `7a573c6` | Render | deploy `dep-dbflpvajnfac73crp23g` | Live |
+| `7a573c6` | Render public URL and API | All five route smoke tests and fictional illustrated-adult `/api/rate-me` probe | Passed; complete validated rating returned |
 
 ## Live resources
 
