@@ -32,6 +32,7 @@ Updated: 2026-10-26T22:24:13+08:00
 - Navigation and smoke coverage include all five product tabs.
 - Commit `b7a11b7` is deployed to the existing Render production service as deploy `dep-dbfm3ics728c73dcq8f0`.
 - Commit `a26ab6e` is deployed to the existing Render production service as deploy `dep-dbg49nec6qcc73ea0t50`.
+- Commit `3a72c24` is deployed to the existing Render production service as deploy `dep-dbg4fshsrm7s73cg251g`.
 
 ## In progress
 
@@ -116,6 +117,9 @@ Updated: 2026-10-26T22:24:13+08:00
 | `a26ab6e` | Render public API | `/api/visual-match` with valid fixed-choice fields while `GEMINI_IMAGE_MODEL` is unset | Passed; HTTP 503 paid-model guard without a provider call |
 | working tree 2026-10-27 | Local Node 23 / Docker Node 22 | Project validation, ESLint, production build, Docker image build and all six route smoke tests after adding Cloudflare FLUX | Passed |
 | working tree 2026-10-27 | Local Docker | `/api/visual-match` without Cloudflare credentials | Passed; HTTP 503 configuration guard without a provider call |
+| `3a72c24` | Render | deploy `dep-dbg4fshsrm7s73cg251g` | Live |
+| `3a72c24` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me`, `/visual-match` and `/digital-twin` smoke tests | Passed |
+| `3a72c24` | Render public API | `/api/visual-match` without Cloudflare credentials | Passed; HTTP 503 configuration guard without a provider call |
 
 ## Live resources
 
