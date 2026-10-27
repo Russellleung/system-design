@@ -5,6 +5,7 @@ import { Camera, Download, Heart, ImagePlus, LoaderCircle, RotateCcw, ShieldChec
 import { AppNav } from "@/components/app-nav";
 import { PhotoCropper } from "@/components/photo-cropper";
 import type { VisualMatchSelections } from "@/lib/visual-match";
+import type { VisualMatchAnalysis } from "@/lib/visual-match-analysis";
 
 type Choice = { value: string; label: string };
 type ChoiceGroup = { key: keyof VisualMatchSelections; label: string; choices: Choice[] };
@@ -120,6 +121,9 @@ export default function VisualMatchPage() {
   const [tuning, setTuning] = useState(false);
   const [confirmedAdult, setConfirmedAdult] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<VisualMatchAnalysis | null>(null);
+  const [analysisStatus, setAnalysisStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [analysisMessage, setAnalysisMessage] = useState("");
   const [status, setStatus] = useState<"idle" | "generating" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
 
@@ -173,6 +177,9 @@ export default function VisualMatchPage() {
     if (!file || !confirmedAdult) return;
     setStatus("generating");
     setMessage("");
+    setAnalysis(null);
+    setAnalysisStatus("idle");
+    setAnalysisMessage("");
     const form = new FormData();
     form.append("image", file);
     form.append("adultConfirmed", "true");
@@ -189,15 +196,36 @@ export default function VisualMatchPage() {
       const generated = `data:${payload.mimeType ?? "image/png"};base64,${payload.imageBase64}`;
       setResult(generated);
       setStatus("done");
+      void analyseGeneratedMatch(generated);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Visual Match is unavailable.");
     }
   }
 
+  async function analyseGeneratedMatch(generated: string) {
+    setAnalysisStatus("loading");
+    setAnalysisMessage("");
+    try {
+      const blob = await fetch(generated).then((response) => response.blob());
+      const form = new FormData();
+      form.append("image", new File([blob], "visual-match.png", { type: blob.type || "image/png" }));
+      const response = await fetch("/api/visual-match-summary", { method: "POST", body: form });
+      const payload = await response.json() as VisualMatchAnalysis & { error?: string; requestId?: string };
+      if (!response.ok || !payload.headline) {
+        throw new Error(`${payload.error ?? "The visual summary is unavailable."}${payload.requestId ? ` Reference: ${payload.requestId}` : ""}`);
+      }
+      setAnalysis(payload);
+      setAnalysisStatus("done");
+    } catch (error) {
+      setAnalysisStatus("error");
+      setAnalysisMessage(error instanceof Error ? error.message : "The visual summary is unavailable.");
+    }
+  }
+
   function reset() {
     if (preview) URL.revokeObjectURL(preview);
-    setFile(null); setPreview(null); setResult(null); setConfirmedAdult(false); setStatus("idle"); setMessage("");
+    setFile(null); setPreview(null); setResult(null); setAnalysis(null); setAnalysisStatus("idle"); setAnalysisMessage(""); setConfirmedAdult(false); setStatus("idle"); setMessage("");
   }
 
   return <main className="min-h-screen bg-[#fbf8f2] text-[#20251f]">
@@ -226,6 +254,12 @@ export default function VisualMatchPage() {
             <div className="absolute bottom-4 left-4 flex flex-wrap gap-2"><button onClick={() => libraryInput.current?.click()} className="flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold"><ImagePlus size={15}/> Choose another</button>{result && <a href={result} download="closet-compass-visual-match.jpg" className="flex items-center gap-2 rounded-full bg-[#9f3d61] px-4 py-2 text-sm font-semibold text-white"><Download size={15}/> Download</a>}</div>
           </div>
           {result && <div className="mt-3 rounded-2xl bg-[#f3e6eb] p-4 text-sm leading-6 text-[#6d3b4d]"><strong>Fictional AI-generated partner.</strong> This is a visual concept, not a prediction of who would suit you in real life.</div>}
+          {result && <div className="mt-3 rounded-2xl border border-[#20251f]/10 bg-white p-5">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9f3d61]">Why this pairing works</p>
+            {analysisStatus === "loading" && <p className="mt-3 flex items-center gap-2 text-sm text-[#667168]"><LoaderCircle className="animate-spin" size={16}/> Reading the visual chemistry…</p>}
+            {analysisStatus === "error" && <div className="mt-3 text-sm leading-6 text-[#782d47]"><p>{analysisMessage}</p><button onClick={() => void analyseGeneratedMatch(result)} className="mt-2 font-semibold underline underline-offset-4">Try the summary again</button></div>}
+            {analysis && <div className="mt-3 space-y-4 text-sm leading-6 text-[#566057]"><div><h3 className="font-serif text-2xl text-[#20251f]">{analysis.headline}</h3><p className="mt-1">{analysis.summary}</p></div><div className="grid gap-3 sm:grid-cols-2"><p><strong className="block text-[#20251f]">Presentation balance</strong>{analysis.presentationMatch}</p><p><strong className="block text-[#20251f]">Style and colour</strong>{analysis.styleAndColour}</p><p><strong className="block text-[#20251f]">Body language</strong>{analysis.bodyLanguage}</p><p><strong className="block text-[#20251f]">Photo coherence</strong>{analysis.photoCoherence}</p></div><p className="border-t border-[#20251f]/10 pt-3 text-xs leading-5 text-[#777168]">{analysis.limitation}</p></div>}
+          </div>}
         </div>
 
         <div className="rounded-[2rem] bg-[#fffdf9] p-6 shadow-sm ring-1 ring-black/5 sm:p-8">
@@ -238,7 +272,7 @@ export default function VisualMatchPage() {
           <p className="mt-4 text-xs leading-5 text-[#777168]">Your reference photo and edit mask are sent to OpenAI and are not stored by Closet Compass. GPT Image edits the marked side and returns one coherent frame; exact preservation outside the mask is model-controlled. Generation uses the paid OpenAI API and may stop if the account reaches its billing limit.</p>
           <button disabled={!confirmedAdult || status === "generating"} onClick={generate} className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-[#9f3d61] px-5 py-3.5 font-bold text-white disabled:opacity-45">{status === "generating" ? <><LoaderCircle className="animate-spin" size={18}/> Creating your couple…</> : <><Heart size={18}/> Create visual match</>}</button>
           {status === "error" && <p className="mt-4 rounded-2xl bg-[#f5dfe5] p-4 text-sm leading-6 text-[#782d47]">{message}</p>}
-          {result && <button onClick={() => { setResult(null); setStatus("idle"); }} className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-[#20251f]/15 px-5 py-3 text-sm font-semibold"><RotateCcw size={16}/> Try different choices</button>}
+          {result && <button onClick={() => { setResult(null); setAnalysis(null); setAnalysisStatus("idle"); setStatus("idle"); }} className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-[#20251f]/15 px-5 py-3 text-sm font-semibold"><RotateCcw size={16}/> Try different choices</button>}
         </div>
       </div>}
 
