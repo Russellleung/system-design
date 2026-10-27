@@ -16,6 +16,9 @@ services:
         sync: false
       - key: GEMINI_VISION_MODEL
         value: gemini-3.5-flash-lite
+      # Paid image generation is deliberately off until explicitly approved.
+      - key: GEMINI_IMAGE_MODEL
+        value: ""
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_VISION_MODEL

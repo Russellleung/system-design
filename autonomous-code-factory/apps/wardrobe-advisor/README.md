@@ -1,10 +1,10 @@
 # Closet Compass
 
-Mobile-first wardrobe, photography and reflection prototype. Visitors can photograph a wardrobe, review an AI-generated visible inventory, understand the style detected in the image, and open shopping searches for complementary pieces. The `/photo-coach` tab gives technique-only advice with a deterministic dotted pose guide. `/rate-me` gives a consenting adult blunt, subjective face, body-presence, style, photo-quality and dating-appeal scores. `/digital-twin` keeps intentional daily entries and photos in browser-local IndexedDB, sends only written evidence for synthesis, and exports an editable Markdown reflection.
+Mobile-first wardrobe, photography and reflection prototype. Visitors can photograph a wardrobe, review an AI-generated visible inventory, understand the style detected in the image, and open shopping searches for complementary pieces. The `/photo-coach` tab gives technique-only advice with a deterministic dotted pose guide. `/rate-me` gives a consenting adult blunt, subjective face, body-presence, style, photo-quality and dating-appeal scores. `/visual-match` edits a consenting adult's portrait to add one fictional adult woman, with AI-directed or fixed-choice creative controls. `/digital-twin` keeps intentional daily entries and photos in browser-local IndexedDB, sends only written evidence for synthesis, and exports an editable Markdown reflection.
 
-Live analysis defaults to Google Gemini and requires a server-side `GEMINI_API_KEY`. Without it, the upload and results experience can be tested through the clearly labelled demo path. Images are sent directly to the selected provider and are not stored by this application. The free Gemini tier may use submissions to improve Google's products; the UI discloses this before use.
+Live analysis defaults to Google Gemini and requires a server-side `GEMINI_API_KEY`. Without it, the upload and results experience can be tested through the clearly labelled demo path. Images are sent directly to the selected provider and are not stored by this application. The free Gemini tier may use analysis submissions to improve Google's products; the UI discloses this before use. Visual Match is separately gated by `GEMINI_IMAGE_MODEL` because Gemini image generation is paid-only; leave it unset to prevent spend, or set it to `gemini-3.1-flash-lite-image` after approving the per-image cost.
 
-Product boundaries: one photo is evidence rather than a complete wardrobe or person; users can correct the inventory; Photo Coach does not infer protected or sensitive traits; Rate Me requires adult consent and may judge visible appearance in that image but cannot identify the person, infer protected traits, sexualise them, prescribe dangerous bodily changes or represent universal attraction; Digital Twin is a provisional summary of words the user intentionally records and never infers personality from stored photos; recommendations link to shopping searches rather than claiming live stock or prices.
+Product boundaries: one photo is evidence rather than a complete wardrobe or person; users can correct the inventory; Photo Coach does not infer protected or sensitive traits; Rate Me requires adult consent and may judge visible appearance in that image but cannot identify the person, infer protected traits, sexualise them, prescribe dangerous bodily changes or represent universal attraction; Visual Match accepts explicit appearance selections but does not infer racial or romantic compatibility and labels its partner as fictional; Digital Twin is a provisional summary of words the user intentionally records and never infers personality from stored photos; recommendations link to shopping searches rather than claiming live stock or prices.
 
 ## Portable deployment: Render + Supabase
 
@@ -26,11 +26,12 @@ docker build -t closet-compass .
 docker run --rm -p 10000:10000 \
   -e VISION_PROVIDER=gemini \
   -e GEMINI_API_KEY="$GEMINI_API_KEY" \
+  -e GEMINI_IMAGE_MODEL="$GEMINI_IMAGE_MODEL" \
   closet-compass
 APP_URL=http://127.0.0.1:10000 npm run smoke
 ```
 
-The demo path works without a provider key. Live photo analysis defaults to `VISION_PROVIDER=gemini` and requires `GEMINI_API_KEY`; keep it server-side. Set `VISION_PROVIDER=openai` to use the retained `OPENAI_API_KEY` fallback. The Supabase service-role key is reserved for migrations or trusted server jobs and must never be exposed through a `NEXT_PUBLIC_` variable.
+The demo path works without a provider key. Live photo analysis defaults to `VISION_PROVIDER=gemini` and requires `GEMINI_API_KEY`; keep it server-side. Set `VISION_PROVIDER=openai` to use the retained `OPENAI_API_KEY` fallback. Visual Match always uses Gemini image editing and additionally requires the paid-model opt-in `GEMINI_IMAGE_MODEL`; it returns a clear configuration message while this is unset. The Supabase service-role key is reserved for migrations or trusted server jobs and must never be exposed through a `NEXT_PUBLIC_` variable.
 
 ### First deployment
 
@@ -167,7 +168,7 @@ Replace the filename with the pending migration and `DB` with your D1 binding na
 - `npm run build`: build the deployable Sites artifact
 - `npm run build:portable`: build the standalone Next.js artifact used by Docker/Render
 - `npm run start`: preview the built Worker locally with D1/R2 support
-- `npm run smoke`: check the deployed health endpoint, homepage, Photo Coach, Rate Me and Digital Twin pages (`APP_URL` defaults to `http://127.0.0.1:10000`)
+- `npm run smoke`: check the deployed health endpoint, homepage, Photo Coach, Rate Me, Visual Match and Digital Twin pages (`APP_URL` defaults to `http://127.0.0.1:10000`)
 - `npm run db:generate`: generate Drizzle migrations after schema changes
 
 When using the Sites plugin, follow its skill instructions for installation, builds, and publishing. These npm commands remain available for standalone use.

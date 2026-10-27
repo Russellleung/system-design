@@ -2,11 +2,11 @@
 
 ## Problem and target user
 
-People accumulate clothes without a clear view of their existing style or which additions would create useful outfits. They may also want practical help taking a stronger photograph, understanding whether a photo communicates well on a dating profile, or reflecting on moments they intentionally record. A phone-first visitor needs useful guidance without opaque judgments or unnecessary storage of personal data.
+People accumulate clothes without a clear view of their existing style or which additions would create useful outfits. They may also want practical help taking a stronger photograph, understanding whether a photo communicates well on a dating profile, visualising a fictional partner beside them, or reflecting on moments they intentionally record. A phone-first visitor needs useful guidance without opaque judgments or unnecessary storage of personal data.
 
 ## Demo journey
 
-A visitor chooses one of four tabs. Wardrobe analysis inventories visible clothing and suggests three complementary pieces. Photo Coach reviews camera technique and offers an optional dotted retake guide. Rate Me gives a consenting adult a deliberately blunt, subjective review of visible face, body presentation, style and dating-profile appeal. Digital Twin saves voluntary daily entries locally and exports a provisional Markdown self-reflection.
+A visitor chooses one of five tabs. Wardrobe analysis inventories visible clothing and suggests three complementary pieces. Photo Coach reviews camera technique and offers an optional dotted retake guide. Rate Me gives a consenting adult a deliberately blunt, subjective review of visible face, body presentation, style and dating-profile appeal. Visual Match adds one fictional adult woman to a consenting adult's portrait using either AI direction or fixed-choice controls. Digital Twin saves voluntary daily entries locally and exports a provisional Markdown self-reflection.
 
 ## Acceptance criteria
 
@@ -30,6 +30,10 @@ A visitor chooses one of four tabs. Wardrobe analysis inventories visible clothi
 - [x] Give every visible face/body feature an explicit attractive, mixed or unattractive verdict followed by a plainspoken, opinionated friend take rather than clinical filler.
 - [x] Give every visible face/body feature its own calibrated 1–10 attraction score; use N/A instead of inventing a score when it cannot be judged.
 - [x] Split physical traits from controllable presentation so anatomy and skin are not framed as instant fixes, while expression, haircut, grooming, posture, pose and clothing receive actionable retake advice.
+- [x] Add a separate Visual Match tab with camera/library upload, client-side cropping and explicit adult consent.
+- [x] Let the user either delegate all partner/scene choices or tune height, build, appearance, adult age, style, energy, pose and setting through fixed selections.
+- [x] Label the generated woman as fictional and avoid claims that visual composition predicts romantic, racial or psychological compatibility.
+- [x] Keep paid Gemini image generation disabled unless `GEMINI_IMAGE_MODEL` is explicitly configured.
 - [x] Explain visible attractive and less-attractive features plus possible positive and negative reactions from adult women without claiming universal preferences.
 - [x] Generate three non-identifying reference-image searches for grooming, styling/pose and setting; send only search text when the user opens a provider link.
 - [x] Give tentative face-shape, body-silhouette, colour and haircut direction plus searchable shirt, pants, palette and haircut upgrades.
@@ -37,7 +41,7 @@ A visitor chooses one of four tabs. Wardrobe analysis inventories visible clothi
 - [x] Send only user-authored text, timestamps and photo filenames for reflection synthesis—not stored photo files.
 - [x] Export the provisional Digital Twin reflection and source text as Markdown.
 - [x] Build and run as a portable production container.
-- [x] Pass local health and all product-page smoke tests.
+- [x] Pass local health and all five product-page smoke tests.
 - [x] Record and smoke-test the final public Render URL.
 
 ## Boundaries

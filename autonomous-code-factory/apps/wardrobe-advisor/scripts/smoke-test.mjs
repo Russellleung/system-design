@@ -37,6 +37,11 @@ await requireResponse("/rate-me", async (response) => {
   if (!body.includes("Fine. Let")) throw new Error("Rate Me page did not contain its primary heading");
 });
 
+await requireResponse("/visual-match", async (response) => {
+  const body = await response.text();
+  if (!body.includes("Picture the chemistry")) throw new Error("Visual Match page did not contain its primary heading");
+});
+
 await requireResponse("/digital-twin", async (response) => {
   const body = await response.text();
   if (!body.includes("Build a twin")) throw new Error("Digital Twin page did not contain its primary heading");

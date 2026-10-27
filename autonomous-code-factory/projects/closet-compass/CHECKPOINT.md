@@ -15,6 +15,9 @@ Updated: 2026-10-26T22:24:13+08:00
 - Gemini uses `gemini-3.5-flash-lite`, structured output and server-side semantic validation.
 - Rate Me's analysis contract remains at the last pre-regression implementation from commit `433a31b`; later per-feature numeric scores and extra model fields remain intentionally absent.
 - Rate Me now groups the stable feature rows into Permanent physical features and Controllable presentation in the UI. This classification is deterministic and does not change the working Gemini prompt, schema, API route or validator.
+- A new `/visual-match` tab lets a consenting adult take or select and crop a portrait, then either delegate all creative choices or tune fixed height, build, appearance, adult-age, style, energy, pose and setting controls for one fictional adult woman.
+- Visual Match uses a separate Gemini image-editing adapter and `GEMINI_IMAGE_MODEL` gate. It does not touch Rate Me's stable model contract, never infers racial/romantic compatibility, and labels the result as visual fiction.
+- `GEMINI_IMAGE_MODEL` remains unset because current Gemini image generation has no API free tier. The deployed UI will return a clear configuration message instead of silently incurring spend.
 - The photo-ready UI discloses Gemini free-tier data use before submission.
 - A second `/photo-coach` tab provides technique-only angle, pose, framing and lighting advice.
 - Photo Coach can display, hide and mirror a deterministic dotted SVG pose guide selected from validated templates.
@@ -26,17 +29,18 @@ Updated: 2026-10-26T22:24:13+08:00
 - Rate Me displays separate physical-attractiveness and dating-photo-effectiveness scores with separate verdicts. Its prompt explicitly treats smiling, neutral, serious and moody expressions as potentially attractive when they work, rather than rewarding smiles by default.
 - Rate Me gives a broad apparent-age range with visible presentation reasons and labels it as how old the adult looks in this photo, not their actual age.
 - A new `/digital-twin` tab stores voluntary thoughts and optional photos in browser-local IndexedDB, sends only written entries and photo filenames for provisional synthesis, and exports Markdown.
-- Navigation and smoke coverage include all four product tabs.
+- Navigation and smoke coverage include all five product tabs.
 - Commit `b7a11b7` is deployed to the existing Render production service as deploy `dep-dbfm3ics728c73dcq8f0`.
 
 ## In progress
 
-- Review the physical-versus-controllable grouping with the user's real rating result.
+- Deploy and smoke-test the Visual Match UI and paid-model guard without enabling billable generation.
 
 ## Blocked or awaiting decisions
 
 - Saved wardrobes, authentication and Supabase provisioning are intentionally out of scope pending a product decision.
 - Cross-device Digital Twin sync remains intentionally out of scope; the current local-first store can be erased with browser data.
+- End-to-end Visual Match generation awaits explicit approval of Gemini image-generation spend and provider-side billing controls. The lowest documented 1K option is roughly US$0.034 per generation.
 
 ## Verification evidence
 
@@ -104,6 +108,8 @@ Updated: 2026-10-26T22:24:13+08:00
 | `b7a11b7` | Local Node 23 / Docker Node 22 | Release preflight, ESLint, production build, image build and all five route smoke tests | Passed |
 | `b7a11b7` | Render | deploy `dep-dbfm3ics728c73dcq8f0` | Live |
 | `b7a11b7` | Render public URL and API | All five route smoke tests and fictional illustrated-adult `/api/rate-me` probe | Passed; HTTP 200 with unchanged analysis contract |
+| working tree 2026-10-27 | Local Node 23 / Docker Node 22 | Project validation, ESLint, production build, Docker image build and all six route smoke tests | Passed |
+| working tree 2026-10-27 | Local Docker | `/api/visual-match` with valid fixed-choice fields while `GEMINI_IMAGE_MODEL` is unset | Passed; HTTP 503 paid-model guard without a provider call |
 
 ## Live resources
 
@@ -113,4 +119,4 @@ Updated: 2026-10-26T22:24:13+08:00
 
 ## Next action
 
-Retry the previously failing consenting-adult portrait and confirm Rate Me returns a validated result. Then use consenting adult-owned smiling and non-smiling portraits to verify that the live model keeps physical traits separate from controllable presentation, does not turn anatomy into corrective advice, keeps physical attractiveness separate from photo effectiveness, and gives plausible feature scores and a broad apparent-age range. Also complete the outstanding phone crop, generated-search and Digital Twin persistence/export/clear checks.
+Deploy the guarded Visual Match slice, verify all five public product pages plus health, and confirm the public API returns the paid-model configuration guard. Only after the owner explicitly approves approximately US$0.034 per 1K generation should `GEMINI_IMAGE_MODEL=gemini-3.1-flash-lite-image` be configured and tested with a consenting adult-owned photo. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.

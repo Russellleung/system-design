@@ -3,7 +3,7 @@
   "slug": "closet-compass",
   "name": "Closet Compass",
   "status": "deployed",
-  "demoJourney": "On a phone, photograph a wardrobe, coach or evaluate a profile photo, or collect private daily entries and export an editable Markdown self-reflection.",
+  "demoJourney": "On a phone, photograph a wardrobe, coach or evaluate a profile photo, create a fictional visual-match portrait, or collect private daily entries and export an editable Markdown self-reflection.",
   "acceptanceCriteria": [
     "A phone user can capture or select an image under 10 MB.",
     "With a configured vision-provider key, the server returns grounded visible garments, style and exactly three gaps.",
@@ -12,8 +12,9 @@
     "A user can upload a portrait, receive technique-only coaching and optionally display or mirror a deterministic dotted pose guide.",
     "Photo Coach does not score appearance or infer sensitive personal traits.",
     "A consenting adult can take or choose and crop a photo, then receive separate physical-attractiveness and dating-photo-effectiveness scores, a broad apparent-age range, expression-neutral feedback, and a calibrated score plus verdict for each face/body feature, split between physical traits that are not presented as fixes and controllable expression, pose, grooming and clothing guidance.",
+    "A consenting adult can take or choose and crop a portrait, let AI direct or tune fixed partner attributes, and request a clearly labelled image with one fictional adult woman without claims of real compatibility.",
     "Digital Twin stores entries and photos locally, sends only written evidence for synthesis, and exports an editable Markdown reflection.",
-    "The public health endpoint and all four product pages pass smoke tests for the deployed commit."
+    "The public health endpoint and all five product pages pass smoke tests for the deployed commit."
   ],
   "budgets": {
     "currency": "USD",

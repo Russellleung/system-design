@@ -1,12 +1,13 @@
-import { Brain, Camera, Shirt, Sparkles, Star } from "lucide-react";
+import { Brain, Camera, Heart, Shirt, Sparkles, Star } from "lucide-react";
 import Link from "next/link";
 
-type AppTab = "wardrobe" | "photo-coach" | "rate-me" | "digital-twin";
+type AppTab = "wardrobe" | "photo-coach" | "rate-me" | "visual-match" | "digital-twin";
 
 const tabs = [
   { id: "wardrobe", href: "/", label: "Wardrobe", icon: Shirt, activeClass: "bg-[#2d4a3e] text-white" },
   { id: "photo-coach", href: "/photo-coach", label: "Photo coach", icon: Camera, activeClass: "bg-[#d95d39] text-white" },
   { id: "rate-me", href: "/rate-me", label: "Rate me", icon: Star, activeClass: "bg-[#57477d] text-white" },
+  { id: "visual-match", href: "/visual-match", label: "Visual match", icon: Heart, activeClass: "bg-[#9f3d61] text-white" },
   { id: "digital-twin", href: "/digital-twin", label: "Digital twin", icon: Brain, activeClass: "bg-[#1d5961] text-white" },
 ] as const;
 
