@@ -31,10 +31,11 @@ Updated: 2026-10-26T22:24:13+08:00
 - A new `/digital-twin` tab stores voluntary thoughts and optional photos in browser-local IndexedDB, sends only written entries and photo filenames for provisional synthesis, and exports Markdown.
 - Navigation and smoke coverage include all five product tabs.
 - Commit `b7a11b7` is deployed to the existing Render production service as deploy `dep-dbfm3ics728c73dcq8f0`.
+- Commit `a26ab6e` is deployed to the existing Render production service as deploy `dep-dbg49nec6qcc73ea0t50`.
 
 ## In progress
 
-- Deploy and smoke-test the Visual Match UI and paid-model guard without enabling billable generation.
+- Review Visual Match's phone layout with the user; automated browser screenshot QA was unavailable in the implementation session.
 
 ## Blocked or awaiting decisions
 
@@ -110,6 +111,9 @@ Updated: 2026-10-26T22:24:13+08:00
 | `b7a11b7` | Render public URL and API | All five route smoke tests and fictional illustrated-adult `/api/rate-me` probe | Passed; HTTP 200 with unchanged analysis contract |
 | working tree 2026-10-27 | Local Node 23 / Docker Node 22 | Project validation, ESLint, production build, Docker image build and all six route smoke tests | Passed |
 | working tree 2026-10-27 | Local Docker | `/api/visual-match` with valid fixed-choice fields while `GEMINI_IMAGE_MODEL` is unset | Passed; HTTP 503 paid-model guard without a provider call |
+| `a26ab6e` | Render | deploy `dep-dbg49nec6qcc73ea0t50` | Live |
+| `a26ab6e` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me`, `/visual-match` and `/digital-twin` smoke tests | Passed |
+| `a26ab6e` | Render public API | `/api/visual-match` with valid fixed-choice fields while `GEMINI_IMAGE_MODEL` is unset | Passed; HTTP 503 paid-model guard without a provider call |
 
 ## Live resources
 
@@ -119,4 +123,4 @@ Updated: 2026-10-26T22:24:13+08:00
 
 ## Next action
 
-Deploy the guarded Visual Match slice, verify all five public product pages plus health, and confirm the public API returns the paid-model configuration guard. Only after the owner explicitly approves approximately US$0.034 per 1K generation should `GEMINI_IMAGE_MODEL=gemini-3.1-flash-lite-image` be configured and tested with a consenting adult-owned photo. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
+Review the Visual Match page on the user's phone. Only after the owner explicitly approves approximately US$0.034 per 1K generation should `GEMINI_IMAGE_MODEL=gemini-3.1-flash-lite-image` be configured and tested with a consenting adult-owned photo. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
