@@ -9,8 +9,6 @@ import {
 
 export const runtime = "nodejs";
 
-const supportedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-
 function errorResponse(error: string, status: number, requestId: string) {
   return NextResponse.json({ error, requestId }, { status, headers: { "X-Request-ID": requestId } });
 }
@@ -28,22 +26,14 @@ function parseSelections(form: FormData): VisualMatchSelections | null {
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   const form = await request.formData();
-  const image = form.get("image");
   if (form.get("adultConfirmed") !== "true") {
     return errorResponse("Confirm that everyone in the uploaded photo is an adult and has consented.", 400, requestId);
-  }
-  if (!(image instanceof File) || !supportedImageTypes.has(image.type)) {
-    return errorResponse("Please upload a JPEG, PNG or WebP image.", 400, requestId);
-  }
-  if (image.size > 10 * 1024 * 1024) {
-    return errorResponse("Please choose an image under 10 MB.", 413, requestId);
   }
   const selections = parseSelections(form);
   if (!selections) return errorResponse("One or more visual-match options are invalid.", 400, requestId);
 
   try {
-    const imageBase64 = Buffer.from(await image.arrayBuffer()).toString("base64");
-    const result = await generateVisualMatch(imageBase64, image.type, selections);
+    const result = await generateVisualMatch(selections);
     return NextResponse.json(
       { imageBase64: result.imageBase64, mimeType: result.mimeType },
       { headers: { "X-Request-ID": requestId, "Cache-Control": "no-store" } },

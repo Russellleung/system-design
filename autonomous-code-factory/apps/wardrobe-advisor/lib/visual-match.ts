@@ -7,6 +7,7 @@ export const visualMatchOptions = {
   energy: ["ai", "warm", "confident", "reserved", "playful", "glamorous"],
   pose: ["ai", "standing-together", "arm-around", "holding-hands", "seated", "laughing-candidly"],
   setting: ["ai", "cafe", "city", "beach", "formal-event", "hiking", "home"],
+  placement: ["right", "left"],
 } as const;
 
 export type VisualMatchSelections = {
@@ -57,7 +58,8 @@ function selectionInstruction(key: keyof VisualMatchSelections, value: string) {
     style: "clothing style",
     energy: "energy",
     pose: "couple pose",
-    setting: "setting",
+    setting: "outfit context",
+    placement: "position beside the source person",
   };
   return `${labels[key]}: ${words(value)}`;
 }
@@ -68,13 +70,12 @@ export function buildVisualMatchPrompt(selections: VisualMatchSelections) {
     .filter(Boolean)
     .join("; ");
 
-  return `Edit the supplied photograph into a natural, photorealistic happy-couple portrait.
+  const facingDirection = selections.placement === "right" ? "slightly toward her left" : "slightly toward her right";
+  return `Create one photorealistic, full-body fictional adult woman as an isolated subject for compositing into another photograph. She must clearly be at least 21 years old. Show her entire body from head to feet without cropping, with a natural affectionate-but-nonsexual couple-photo pose, looking ${facingDirection} toward a person who will be added later.
 
-Keep the original adult exactly recognizable: preserve their face, body, skin, hair, clothes and distinctive features. Do not beautify, reshape, age, de-age or replace them. Extend the composition only as needed to add exactly one fictional adult woman beside them. Both people must clearly be at least 21 years old. The interaction should be affectionate but non-sexual, natural and mutually comfortable.
+${chosen ? `Use these selected attributes: ${chosen}.` : "Choose visually coherent adult features, clothing and energy. Do not imply psychological, biological or racial compatibility."}
 
-${chosen ? `Use these user-selected attributes for the fictional partner and scene: ${chosen}.` : "Choose the fictional partner's appearance, build, height, adult age, style, energy, pose and setting for strong visual composition. Make an aesthetic creative choice only; do not infer race, personality, social status or real-world romantic compatibility from the source person."}
-
-For every attribute left as AI choice, choose what makes the photograph visually coherent. Do not claim or encode psychological, biological or racial compatibility. Match the source lighting, perspective, colour grade and camera realism. Avoid duplicate people, extra limbs, text, logos and watermarks. Return one finished 4:5 portrait image.`;
+Use a perfectly flat, evenly lit chroma-key green (#00FF00) background with no scenery, floor, furniture, props, text, logo, watermark or green clothing. Do not cast a shadow onto the green background. Keep a clean, sharp outline around hair, clothes and limbs. Output exactly one person.`;
 }
 
 function extractImage(result: Record<string, unknown>) {
@@ -107,9 +108,13 @@ function extractImage(result: Record<string, unknown>) {
   return null;
 }
 
+function detectImageMime(imageBase64: string) {
+  if (imageBase64.startsWith("iVBOR")) return "image/png";
+  if (imageBase64.startsWith("UklGR")) return "image/webp";
+  return "image/jpeg";
+}
+
 async function generateWithGemini(
-  imageBase64: string,
-  mimeType: string,
   selections: VisualMatchSelections,
 ): Promise<GeneratedVisualMatch> {
   const provider = "gemini" as const;
@@ -140,10 +145,7 @@ async function generateWithGemini(
       signal: AbortSignal.timeout(120_000),
       body: JSON.stringify({
         model,
-        input: [
-          { type: "text", text: buildVisualMatchPrompt(selections) },
-          { type: "image", data: imageBase64, mime_type: mimeType },
-        ],
+        input: [{ type: "text", text: buildVisualMatchPrompt(selections) }],
         response_format: {
           type: "image",
           mime_type: "image/jpeg",
@@ -204,8 +206,6 @@ async function generateWithGemini(
 }
 
 async function generateWithCloudflare(
-  imageBase64: string,
-  mimeType: string,
   selections: VisualMatchSelections,
 ): Promise<GeneratedVisualMatch> {
   const provider = "cloudflare" as const;
@@ -219,12 +219,10 @@ async function generateWithCloudflare(
     );
   }
 
-  const imageBytes = Uint8Array.from(Buffer.from(imageBase64, "base64"));
   const form = new FormData();
   form.append("prompt", buildVisualMatchPrompt(selections));
-  form.append("input_image_0", new Blob([imageBytes], { type: mimeType }), "portrait.jpg");
-  form.append("width", "1024");
-  form.append("height", "1280");
+  form.append("width", "768");
+  form.append("height", "1024");
 
   let response: Response;
   try {
@@ -288,15 +286,13 @@ async function generateWithCloudflare(
     });
   }
 
-  return { imageBase64: result.image, mimeType: "image/jpeg", providerRequestId };
+  return { imageBase64: result.image, mimeType: detectImageMime(result.image), providerRequestId };
 }
 
 export function generateVisualMatch(
-  imageBase64: string,
-  mimeType: string,
   selections: VisualMatchSelections,
 ) {
   return selectedVisualMatchProvider() === "gemini"
-    ? generateWithGemini(imageBase64, mimeType, selections)
-    : generateWithCloudflare(imageBase64, mimeType, selections);
+    ? generateWithGemini(selections)
+    : generateWithCloudflare(selections);
 }
