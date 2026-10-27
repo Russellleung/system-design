@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-27T15:15:00+08:00
+Updated: 2026-10-27T15:11:27+08:00
 
 ## Working now
 
@@ -33,6 +33,7 @@ Updated: 2026-10-27T15:15:00+08:00
 - Commit `b7a11b7` is deployed to the existing Render production service as deploy `dep-dbfm3ics728c73dcq8f0`.
 - Commit `a26ab6e` is deployed to the existing Render production service as deploy `dep-dbg49nec6qcc73ea0t50`.
 - Commit `313fdc6` is deployed to the existing Render production service as deploy `dep-dbg4nm6c6qcc73ebca90`.
+- Commit `c8a57ae` is deployed to the existing Render production service as deploy `dep-dbg4s4sipgvc73eh9t80`.
 
 ## In progress
 
@@ -127,6 +128,9 @@ Updated: 2026-10-27T15:15:00+08:00
 | `313fdc6` | Render public API | Synthetic `/api/visual-match` request containing selections only and no source photo | Passed; HTTP 200 with a JPEG partner image returned for local browser compositing |
 | working tree 2026-10-27 | Local Node 23 / Docker Node 22 | ESLint, portable production build, Docker image build and all six route smoke tests after restoring full-frame editing | Passed |
 | working tree 2026-10-27 | Local Docker | `/api/visual-match` with an uploaded image and all fixed-choice fields | Reached the expected HTTP 503 local credential guard, proving the image-edit upload path is active |
+| `c8a57ae` | Render | deploy `dep-dbg4s4sipgvc73eh9t80` | Live |
+| `c8a57ae` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me`, `/visual-match` and `/digital-twin` smoke tests | Passed |
+| `c8a57ae` | Render public API | Synthetic full-frame `/api/visual-match` edit with uploaded reference image and fixed controls | Passed; HTTP 200 with a complete JPEG result |
 
 ## Live resources
 
@@ -136,4 +140,4 @@ Updated: 2026-10-27T15:15:00+08:00
 
 ## Next action
 
-Deploy the full-frame preservation-first Visual Match revision, then test realism and source fidelity on the user's phone. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
+Test the deployed full-frame edit's realism and source fidelity on the user's own phone photo. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
