@@ -44,7 +44,7 @@ Updated: 2026-10-27T21:02:00+08:00
 
 - Saved wardrobes, authentication and Supabase provisioning are intentionally out of scope pending a product decision.
 - Cross-device Digital Twin sync remains intentionally out of scope; the current local-first store can be erased with browser data.
-- The deployed OpenAI image-edit request now passes billing but Sunburst rejected the unsupported `input_fidelity` parameter. The field has been removed; redeployment and live generation verification are in progress.
+- OpenAI Sunburst masked editing is live. The unsupported `input_fidelity` parameter was removed, and a public end-to-end request returned a complete 768×1024 PNG.
 
 ## Verification evidence
 
@@ -137,6 +137,8 @@ Updated: 2026-10-27T21:02:00+08:00
 | `58084d4` | Render | deploy `dep-dbg9u1cs728c73dq5u7g` | Live |
 | `58084d4` | Render public URL | `/api/health` and `/visual-match` | Passed; HTTP 200 |
 | `58084d4` | Render public API | Synthetic `/api/visual-match` request with reference image, same-size alpha mask and valid controls | Reached OpenAI Sunburst; provider returned HTTP 429 usage/billing limit through the app's safe error path |
+| `ec2c07b` | Render | deploy `dep-dbga24gm7kps73brp6k0` | Live |
+| `ec2c07b` | Render public API | Synthetic `/api/visual-match` request with reference image, same-size alpha mask and valid controls | Passed; HTTP 200 with a complete 768×1024 PNG |
 
 ## Live resources
 
@@ -146,4 +148,4 @@ Updated: 2026-10-27T21:02:00+08:00
 
 ## Next action
 
-Fund the existing OpenAI project or replace `OPENAI_API_KEY` with a key that has image-edit credits, then test realism and the protected-source boundary on the user's own phone photo. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
+Test Sunburst realism and the protected-source boundary on the user's own phone photo. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
