@@ -34,7 +34,7 @@ A visitor chooses one of five tabs. Wardrobe analysis inventories visible clothi
 - [x] Let the user either delegate all partner/scene choices or tune height, build, appearance, adult age, style, energy, pose and setting through fixed selections.
 - [x] Label the generated woman as fictional and avoid claims that visual composition predicts romantic, racial or psychological compatibility.
 - [x] Use Cloudflare FLUX.2 Klein 4B and its hard-stopping free daily allocation by default; keep paid Gemini image generation as an explicit fallback only.
-- [x] Keep the uploaded person and environment out of the generation request; generate an isolated partner and composite it locally over the original pixels.
+- [x] Use full-frame generative editing for a coherent result, with strict best-effort instructions to preserve the original person and environment.
 - [x] Explain visible attractive and less-attractive features plus possible positive and negative reactions from adult women without claiming universal preferences.
 - [x] Generate three non-identifying reference-image searches for grooming, styling/pose and setting; send only search text when the user opens a provider link.
 - [x] Give tentative face-shape, body-silhouette, colour and haircut direction plus searchable shirt, pants, palette and haircut upgrades.

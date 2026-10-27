@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-26T22:24:13+08:00
+Updated: 2026-10-27T15:15:00+08:00
 
 ## Working now
 
@@ -17,7 +17,7 @@ Updated: 2026-10-26T22:24:13+08:00
 - Rate Me now groups the stable feature rows into Permanent physical features and Controllable presentation in the UI. This classification is deterministic and does not change the working Gemini prompt, schema, API route or validator.
 - A new `/visual-match` tab lets a consenting adult take or select and crop a portrait, then either delegate all creative choices or tune fixed height, build, appearance, adult-age, style, energy, pose and setting controls for one fictional adult woman.
 - Visual Match uses a provider-neutral partner-generation adapter. Cloudflare FLUX.2 Klein 4B is the default, and paid Gemini generation remains an explicit fallback. Neither path touches Rate Me's stable model contract; both avoid inferring racial/romantic compatibility and label the result as visual fiction.
-- The original photo never enters the Visual Match API. Cloudflare generates one isolated full-body partner on chroma green; the browser removes the background and composites the cutout over the original photo. This makes the source person and environment immutable instead of relying on a model instruction to preserve them.
+- Visual Match sends a resized reference photo to the selected image provider for a coherent full-frame edit. Its preservation-first prompt treats the source person, environment, framing and lighting as locked and tells the model to simplify the partner rather than change the source, while the UI accurately discloses that exact preservation is not deterministic.
 - The photo-ready UI discloses Gemini free-tier data use before submission.
 - A second `/photo-coach` tab provides technique-only angle, pose, framing and lighting advice.
 - Photo Coach can display, hide and mirror a deterministic dotted SVG pose guide selected from validated templates.
@@ -32,7 +32,7 @@ Updated: 2026-10-26T22:24:13+08:00
 - Navigation and smoke coverage include all five product tabs.
 - Commit `b7a11b7` is deployed to the existing Render production service as deploy `dep-dbfm3ics728c73dcq8f0`.
 - Commit `a26ab6e` is deployed to the existing Render production service as deploy `dep-dbg49nec6qcc73ea0t50`.
-- Commit `3a72c24` is deployed to the existing Render production service as deploy `dep-dbg4fshsrm7s73cg251g`.
+- Commit `313fdc6` is deployed to the existing Render production service as deploy `dep-dbg4nm6c6qcc73ebca90`.
 
 ## In progress
 
@@ -42,7 +42,7 @@ Updated: 2026-10-26T22:24:13+08:00
 
 - Saved wardrobes, authentication and Supabase provisioning are intentionally out of scope pending a product decision.
 - Cross-device Digital Twin sync remains intentionally out of scope; the current local-first store can be erased with browser data.
-- End-to-end Visual Match generation awaits a Cloudflare account ID and narrowly scoped Workers AI API token in Render. No paid plan is required; the free plan stops at its daily limit.
+- Visual Match generation is configured on Render. Phone QA is still needed to judge realism and how faithfully Cloudflare preserves the source person and environment across varied photos.
 
 ## Verification evidence
 
@@ -122,6 +122,11 @@ Updated: 2026-10-26T22:24:13+08:00
 | `3a72c24` | Render public API | `/api/visual-match` without Cloudflare credentials | Passed; HTTP 503 configuration guard without a provider call |
 | working tree 2026-10-27 | Local Node 23 / Docker Node 22 | ESLint, production build, Docker image build and all six route smoke tests after immutable-base compositing change | Passed |
 | working tree 2026-10-27 | Local Docker | `/api/visual-match` request with selections and no uploaded source image | Reached the expected HTTP 503 local credential guard, proving the route no longer requires or transmits the source photo |
+| `313fdc6` | Render | deploy `dep-dbg4nm6c6qcc73ebca90` | Live |
+| `313fdc6` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me`, `/visual-match` and `/digital-twin` smoke tests | Passed |
+| `313fdc6` | Render public API | Synthetic `/api/visual-match` request containing selections only and no source photo | Passed; HTTP 200 with a JPEG partner image returned for local browser compositing |
+| working tree 2026-10-27 | Local Node 23 / Docker Node 22 | ESLint, portable production build, Docker image build and all six route smoke tests after restoring full-frame editing | Passed |
+| working tree 2026-10-27 | Local Docker | `/api/visual-match` with an uploaded image and all fixed-choice fields | Reached the expected HTTP 503 local credential guard, proving the image-edit upload path is active |
 
 ## Live resources
 
@@ -131,4 +136,4 @@ Updated: 2026-10-26T22:24:13+08:00
 
 ## Next action
 
-Configure `CLOUDFLARE_ACCOUNT_ID` and a narrowly scoped `CLOUDFLARE_API_TOKEN` in Render, then test partner isolation, edge quality, scale and left/right placement on the user's phone. The original photo should remain visually unchanged outside the partner overlay. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
+Deploy the full-frame preservation-first Visual Match revision, then test realism and source fidelity on the user's phone. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
