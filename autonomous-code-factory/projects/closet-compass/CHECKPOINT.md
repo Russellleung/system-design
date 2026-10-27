@@ -1,6 +1,6 @@
 # Current checkpoint
 
-Updated: 2026-10-27T15:11:27+08:00
+Updated: 2026-10-27T21:02:00+08:00
 
 ## Working now
 
@@ -34,6 +34,7 @@ Updated: 2026-10-27T15:11:27+08:00
 - Commit `a26ab6e` is deployed to the existing Render production service as deploy `dep-dbg49nec6qcc73ea0t50`.
 - Commit `313fdc6` is deployed to the existing Render production service as deploy `dep-dbg4nm6c6qcc73ebca90`.
 - Commit `c8a57ae` is deployed to the existing Render production service as deploy `dep-dbg4s4sipgvc73eh9t80`.
+- Commit `58084d4` is deployed to the existing Render production service as deploy `dep-dbg9u1cs728c73dq5u7g`.
 
 ## In progress
 
@@ -43,7 +44,7 @@ Updated: 2026-10-27T15:11:27+08:00
 
 - Saved wardrobes, authentication and Supabase provisioning are intentionally out of scope pending a product decision.
 - Cross-device Digital Twin sync remains intentionally out of scope; the current local-first store can be erased with browser data.
-- OpenAI Visual Match still needs a live Render generation check to confirm the existing server-side key has image-edit access and billing. Phone QA is then needed to judge realism across varied photos.
+- The deployed OpenAI image-edit request reaches Sunburst but the existing OpenAI project returns HTTP 429 for usage/billing. Add credits or a funded project key before phone QA.
 
 ## Verification evidence
 
@@ -133,6 +134,9 @@ Updated: 2026-10-27T15:11:27+08:00
 | `c8a57ae` | Render public API | Synthetic full-frame `/api/visual-match` edit with uploaded reference image and fixed controls | Passed; HTTP 200 with a complete JPEG result |
 | working tree 2026-10-27 | Local Node 23 / Docker Node 22 | Project validation, ESLint, portable production build, container build and all six route smoke tests after adding OpenAI masked regional editing | Passed |
 | working tree 2026-10-27 | Local Docker | `/api/visual-match` with image, PNG mask and valid options but no OpenAI key | Passed; HTTP 503 configuration guard without a provider call |
+| `58084d4` | Render | deploy `dep-dbg9u1cs728c73dq5u7g` | Live |
+| `58084d4` | Render public URL | `/api/health` and `/visual-match` | Passed; HTTP 200 |
+| `58084d4` | Render public API | Synthetic `/api/visual-match` request with reference image, same-size alpha mask and valid controls | Reached OpenAI Sunburst; provider returned HTTP 429 usage/billing limit through the app's safe error path |
 
 ## Live resources
 
@@ -142,4 +146,4 @@ Updated: 2026-10-27T15:11:27+08:00
 
 ## Next action
 
-Deploy the OpenAI masked-edit build, verify the provider configuration, then test realism and the protected-source boundary on the user's own phone photo. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
+Fund the existing OpenAI project or replace `OPENAI_API_KEY` with a key that has image-edit credits, then test realism and the protected-source boundary on the user's own phone photo. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
