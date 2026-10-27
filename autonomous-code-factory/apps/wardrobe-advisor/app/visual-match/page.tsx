@@ -88,7 +88,7 @@ async function prepareOpenAIReference(source: File) {
   }
 }
 
-async function createPlacementMask(source: File, placement: VisualMatchSelections["placement"]) {
+async function createPlacementMask(source: File, placement: VisualMatchSelections["placement"], widthPercent: number) {
   const sourceUrl = URL.createObjectURL(source);
   try {
     const image = await loadBrowserImage(sourceUrl);
@@ -99,7 +99,7 @@ async function createPlacementMask(source: File, placement: VisualMatchSelection
     if (!context) throw new Error("This browser cannot prepare the edit area.");
     context.fillStyle = "#000";
     context.fillRect(0, 0, canvas.width, canvas.height);
-    const editWidth = Math.round(canvas.width * 0.42);
+    const editWidth = Math.round(canvas.width * widthPercent / 100);
     context.clearRect(placement === "right" ? canvas.width - editWidth : 0, 0, editWidth, canvas.height);
     const blob = await canvasBlob(canvas, "image/png");
     return {
@@ -122,6 +122,7 @@ export default function VisualMatchPage() {
   const [tuning, setTuning] = useState(false);
   const [confirmedAdult, setConfirmedAdult] = useState(false);
   const [confirmedClearZone, setConfirmedClearZone] = useState(false);
+  const [maskWidthPercent, setMaskWidthPercent] = useState(46);
   const [result, setResult] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<VisualMatchAnalysis | null>(null);
   const [analysisStatus, setAnalysisStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -182,6 +183,15 @@ export default function VisualMatchPage() {
     setTuning(false);
   }
 
+  function changeMaskWidth(widthPercent: number) {
+    setMaskWidthPercent(widthPercent);
+    setConfirmedClearZone(false);
+    setResult(null);
+    setAnalysis(null);
+    setAnalysisStatus("idle");
+    setStatus("idle");
+  }
+
   async function generate() {
     if (!file || !confirmedAdult || !confirmedClearZone) return;
     setStatus("generating");
@@ -194,7 +204,7 @@ export default function VisualMatchPage() {
     form.append("adultConfirmed", "true");
     for (const [key, value] of Object.entries(selections)) form.append(key, value);
     try {
-      const mask = await createPlacementMask(file, selections.placement);
+      const mask = await createPlacementMask(file, selections.placement, maskWidthPercent);
       form.append("mask", mask.file);
       form.append("outputSize", mask.size);
       const response = await fetch("/api/visual-match", { method: "POST", body: form });
@@ -259,7 +269,7 @@ export default function VisualMatchPage() {
           <div className="relative min-h-[520px] overflow-hidden rounded-[2rem] bg-[#282126]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={result ?? preview} alt={result ? "AI-generated visual match" : "Selected source portrait"} className="absolute inset-0 h-full w-full object-contain"/>
-            {!result && <div className={`pointer-events-none absolute inset-y-0 ${selections.placement === "right" ? "right-0 border-l" : "left-0 border-r"} w-[42%] border-dashed border-white/75 bg-[#9f3d61]/20`}><span className="absolute left-1/2 top-4 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/75 px-3 py-1 text-xs font-semibold text-white">AI can redraw this area</span></div>}
+            {!result && <div style={{ width: `${maskWidthPercent}%` }} className={`pointer-events-none absolute inset-y-0 ${selections.placement === "right" ? "right-0 border-l" : "left-0 border-r"} border-dashed border-white/75 bg-[#9f3d61]/20`}><span className="absolute left-1/2 top-4 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/75 px-3 py-1 text-xs font-semibold text-white">AI can redraw this area</span></div>}
             <div className="absolute bottom-4 left-4 flex flex-wrap gap-2"><button onClick={() => libraryInput.current?.click()} className="flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold"><ImagePlus size={15}/> Choose another</button>{result && <a href={result} download="closet-compass-visual-match.jpg" className="flex items-center gap-2 rounded-full bg-[#9f3d61] px-4 py-2 text-sm font-semibold text-white"><Download size={15}/> Download</a>}</div>
           </div>
           {result && <div className="mt-3 rounded-2xl bg-[#f3e6eb] p-4 text-sm leading-6 text-[#6d3b4d]"><strong>Fictional AI-generated partner.</strong> This is a visual concept, not a prediction of who would suit you in real life.</div>}
@@ -279,8 +289,14 @@ export default function VisualMatchPage() {
 
           <fieldset className="mt-6"><legend className="text-sm font-semibold">Where is the empty space?</legend><p className="mt-1 text-xs leading-5 text-[#777168]">Choose the side that does not cover any part of you in pink.</p><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => setChoice("placement", "left")} className={`rounded-xl px-4 py-3 text-sm font-bold ${selections.placement === "left" ? "bg-[#20251f] text-white" : "border border-[#20251f]/15 bg-white"}`}>Add partner left</button><button type="button" onClick={() => setChoice("placement", "right")} className={`rounded-xl px-4 py-3 text-sm font-bold ${selections.placement === "right" ? "bg-[#20251f] text-white" : "border border-[#20251f]/15 bg-white"}`}>Add partner right</button></div></fieldset>
 
+          <label className="mt-5 block text-sm font-semibold">Move the partner closer
+            <span className="float-right text-xs font-medium text-[#777168]">Edit area: {maskWidthPercent}%</span>
+            <input type="range" min="36" max="50" step="1" value={maskWidthPercent} onChange={(event) => changeMaskWidth(Number(event.target.value))} className="mt-3 w-full accent-[#9f3d61]"/>
+            <span className="mt-1 flex justify-between text-xs font-normal text-[#777168]"><span>More distance</span><span>Closer</span></span>
+          </label>
+
           <label className="mt-6 flex cursor-pointer gap-3 rounded-2xl bg-[#f2eee7] p-4 text-sm leading-5"><input type="checkbox" checked={confirmedAdult} onChange={(event) => setConfirmedAdult(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#9f3d61]"/><span>I confirm that the person in my photo is 18+ and has consented to this AI image edit.</span></label>
-          <label className="mt-3 flex cursor-pointer gap-3 rounded-2xl bg-[#f5dfe5] p-4 text-sm font-medium leading-5 text-[#6d3b4d]"><input type="checkbox" checked={confirmedClearZone} onChange={(event) => setConfirmedClearZone(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#9f3d61]"/><span>I confirm the pink edit area does not cover any part of my head or body. If it does, I will switch sides or choose another photo.</span></label>
+          <label className="mt-3 flex cursor-pointer gap-3 rounded-2xl bg-[#f5dfe5] p-4 text-sm font-medium leading-5 text-[#6d3b4d]"><input type="checkbox" checked={confirmedClearZone} onChange={(event) => setConfirmedClearZone(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#9f3d61]"/><span>I adjusted the boundary and confirm the pink edit area does not cover any part of my head or body. If it does, I will reduce the edit area, switch sides or choose another photo.</span></label>
           <p className="mt-4 text-xs leading-5 text-[#777168]">Your reference photo and edit mask are sent to OpenAI and are not stored by Closet Compass. GPT Image edits the marked side and returns one coherent frame; exact preservation outside the mask is model-controlled. Generation uses the paid OpenAI API and may stop if the account reaches its billing limit.</p>
           <button disabled={!confirmedAdult || !confirmedClearZone || status === "generating"} onClick={generate} className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-[#9f3d61] px-5 py-3.5 font-bold text-white disabled:opacity-45">{status === "generating" ? <><LoaderCircle className="animate-spin" size={18}/> Creating your couple…</> : <><Heart size={18}/> Create visual match</>}</button>
           {status === "error" && <p className="mt-4 rounded-2xl bg-[#f5dfe5] p-4 text-sm leading-6 text-[#782d47]">{message}</p>}
