@@ -44,7 +44,7 @@ Updated: 2026-10-27T21:02:00+08:00
 
 - Saved wardrobes, authentication and Supabase provisioning are intentionally out of scope pending a product decision.
 - Cross-device Digital Twin sync remains intentionally out of scope; the current local-first store can be erased with browser data.
-- The deployed OpenAI image-edit request reaches Sunburst but the existing OpenAI project returns HTTP 429 for usage/billing. Add credits or a funded project key before phone QA.
+- The deployed OpenAI image-edit request now passes billing but Sunburst rejected the unsupported `input_fidelity` parameter. The field has been removed; redeployment and live generation verification are in progress.
 
 ## Verification evidence
 

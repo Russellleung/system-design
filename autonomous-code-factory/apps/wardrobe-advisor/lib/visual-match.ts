@@ -109,7 +109,6 @@ async function generateWithOpenAI(
   form.append("quality", process.env.OPENAI_IMAGE_QUALITY ?? "high");
   form.append("size", outputSize);
   form.append("output_format", "png");
-  form.append("input_fidelity", "high");
 
   let response: Response;
   try {
