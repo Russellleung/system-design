@@ -109,41 +109,6 @@ async function createPlacementMask(source: File, placement: VisualMatchSelection
   }
 }
 
-async function mergeMaskedEdit(originalUrl: string, generatedUrl: string, placement: VisualMatchSelections["placement"]) {
-  const [original, generated] = await Promise.all([loadBrowserImage(originalUrl), loadBrowserImage(generatedUrl)]);
-  const canvas = document.createElement("canvas");
-  canvas.width = original.naturalWidth;
-  canvas.height = original.naturalHeight;
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("This browser cannot finish the edited photo.");
-  context.drawImage(original, 0, 0, canvas.width, canvas.height);
-
-  const overlay = document.createElement("canvas");
-  overlay.width = canvas.width;
-  overlay.height = canvas.height;
-  const overlayContext = overlay.getContext("2d");
-  if (!overlayContext) throw new Error("This browser cannot finish the edited photo.");
-  overlayContext.drawImage(generated, 0, 0, overlay.width, overlay.height);
-  overlayContext.globalCompositeOperation = "destination-in";
-  const edge = placement === "right" ? 0.53 : 0.47;
-  const feather = 0.025;
-  const gradient = overlayContext.createLinearGradient(
-    canvas.width * (edge - feather), 0,
-    canvas.width * (edge + feather), 0,
-  );
-  if (placement === "right") {
-    gradient.addColorStop(0, "rgba(0,0,0,0)");
-    gradient.addColorStop(1, "rgba(0,0,0,1)");
-  } else {
-    gradient.addColorStop(0, "rgba(0,0,0,1)");
-    gradient.addColorStop(1, "rgba(0,0,0,0)");
-  }
-  overlayContext.fillStyle = gradient;
-  overlayContext.fillRect(0, 0, overlay.width, overlay.height);
-  context.drawImage(overlay, 0, 0);
-  return canvas.toDataURL("image/png");
-}
-
 export default function VisualMatchPage() {
   const cameraInput = useRef<HTMLInputElement>(null);
   const libraryInput = useRef<HTMLInputElement>(null);
@@ -222,7 +187,7 @@ export default function VisualMatchPage() {
         throw new Error(`${payload.error ?? "Visual Match is unavailable."}${payload.requestId ? ` Reference: ${payload.requestId}` : ""}`);
       }
       const generated = `data:${payload.mimeType ?? "image/png"};base64,${payload.imageBase64}`;
-      setResult(await mergeMaskedEdit(preview!, generated, selections.placement));
+      setResult(generated);
       setStatus("done");
     } catch (error) {
       setStatus("error");
@@ -267,10 +232,10 @@ export default function VisualMatchPage() {
           <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.17em] text-[#9f3d61]">Creative direction</p><h2 className="mt-2 font-serif text-4xl tracking-[-0.035em]">Who stands beside you?</h2></div>{tuning && <button onClick={useAiChoices} className="flex items-center gap-2 rounded-full border border-[#20251f]/15 px-4 py-2 text-sm font-semibold"><Sparkles size={15}/> Reset to AI</button>}</div>
           <div className="mt-6 grid grid-cols-2 rounded-2xl bg-[#f3e6eb] p-1"><button onClick={useAiChoices} className={`rounded-xl px-4 py-3 text-sm font-bold ${!tuning ? "bg-[#9f3d61] text-white" : "text-[#754257]"}`}>AI chooses</button><button onClick={() => setTuning(true)} className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold ${tuning ? "bg-[#9f3d61] text-white" : "text-[#754257]"}`}><SlidersHorizontal size={15}/> Tune it</button></div>
 
-          {!tuning ? <div className="mt-6 rounded-2xl border border-[#9f3d61]/15 bg-[#fbf4f6] p-5 text-sm leading-6 text-[#6a5960]">OpenAI will add a fictional adult partner only inside the marked edit area. It is directed to create a believable visual peer with comparable attractiveness, age, grooming and photographic polish—not a generic fashion model. Place yourself outside the marked area: the app restores the original pixels everywhere else. It will not match ethnicity or claim real compatibility.</div> : <div className="mt-6 grid gap-5 sm:grid-cols-2">{groups.map((group) => <label key={group.key} className="text-sm font-semibold">{group.label}<select value={selections[group.key]} onChange={(event) => setChoice(group.key, event.target.value)} className="mt-2 w-full rounded-xl border border-[#20251f]/15 bg-white px-3 py-3 font-normal outline-none focus:border-[#9f3d61]">{group.choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</select></label>)}</div>}
+          {!tuning ? <div className="mt-6 rounded-2xl border border-[#9f3d61]/15 bg-[#fbf4f6] p-5 text-sm leading-6 text-[#6a5960]">OpenAI will add a fictional adult partner inside the marked edit area. It is directed to create a believable visual peer with comparable attractiveness, age, grooming and photographic polish—not a generic fashion model. Keep yourself outside the marked area so Sunburst can preserve you through its edit mask. It will not match ethnicity or claim real compatibility.</div> : <div className="mt-6 grid gap-5 sm:grid-cols-2">{groups.map((group) => <label key={group.key} className="text-sm font-semibold">{group.label}<select value={selections[group.key]} onChange={(event) => setChoice(group.key, event.target.value)} className="mt-2 w-full rounded-xl border border-[#20251f]/15 bg-white px-3 py-3 font-normal outline-none focus:border-[#9f3d61]">{group.choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</select></label>)}</div>}
 
           <label className="mt-6 flex cursor-pointer gap-3 rounded-2xl bg-[#f2eee7] p-4 text-sm leading-5"><input type="checkbox" checked={confirmedAdult} onChange={(event) => setConfirmedAdult(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#9f3d61]"/><span>I confirm that the person in my photo is 18+ and has consented to this AI image edit.</span></label>
-          <p className="mt-4 text-xs leading-5 text-[#777168]">Your reference photo and edit mask are sent to OpenAI and are not stored by Closet Compass. GPT Image edits the marked side; the app then restores your original photo outside that area. Generation uses the paid OpenAI API and may stop if the account reaches its billing limit.</p>
+          <p className="mt-4 text-xs leading-5 text-[#777168]">Your reference photo and edit mask are sent to OpenAI and are not stored by Closet Compass. GPT Image edits the marked side and returns one coherent frame; exact preservation outside the mask is model-controlled. Generation uses the paid OpenAI API and may stop if the account reaches its billing limit.</p>
           <button disabled={!confirmedAdult || status === "generating"} onClick={generate} className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-[#9f3d61] px-5 py-3.5 font-bold text-white disabled:opacity-45">{status === "generating" ? <><LoaderCircle className="animate-spin" size={18}/> Creating your couple…</> : <><Heart size={18}/> Create visual match</>}</button>
           {status === "error" && <p className="mt-4 rounded-2xl bg-[#f5dfe5] p-4 text-sm leading-6 text-[#782d47]">{message}</p>}
           {result && <button onClick={() => { setResult(null); setStatus("idle"); }} className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-[#20251f]/15 px-5 py-3 text-sm font-semibold"><RotateCcw size={16}/> Try different choices</button>}

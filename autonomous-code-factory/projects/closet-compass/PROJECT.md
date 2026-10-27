@@ -34,7 +34,7 @@ A visitor chooses one of five tabs. Wardrobe analysis inventories visible clothi
 - [x] Let the user either delegate all partner/scene choices or tune height, build, appearance, adult age, style, energy, pose and setting through fixed selections.
 - [x] Label the generated woman as fictional and avoid claims that visual composition predicts romantic, racial or psychological compatibility.
 - [x] Use OpenAI GPT Image 2.5 Sunburst with a side-specific edit mask by default; keep Cloudflare and Gemini as optional fallbacks.
-- [x] Restore the original pixels outside the masked partner region after generation while feathering the join for a coherent result.
+- [x] Use Sunburst's edit mask and return its coherent output directly, without a second browser alpha blend that creates a visible vertical seam.
 - [x] Direct Visual Match to create an aesthetically harmonious partner in the same broad physical-attractiveness and presentation tier instead of defaulting to an idealised model.
 - [x] Explain visible attractive and less-attractive features plus possible positive and negative reactions from adult women without claiming universal preferences.
 - [x] Generate three non-identifying reference-image searches for grooming, styling/pose and setting; send only search text when the user opens a provider link.
