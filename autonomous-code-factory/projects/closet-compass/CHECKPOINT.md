@@ -45,6 +45,8 @@ Updated: 2026-10-27T21:02:00+08:00
 - Saved wardrobes, authentication and Supabase provisioning are intentionally out of scope pending a product decision.
 - Cross-device Digital Twin sync remains intentionally out of scope; the current local-first store can be erased with browser data.
 - OpenAI Sunburst masked editing is live. The unsupported `input_fidelity` parameter was removed, and a public end-to-end request returned a complete 768×1024 PNG.
+- Visual Match now displays Sunburst's coherent masked output directly, removing the browser alpha gradient that created a visible vertical transparency seam.
+- Each generated couple is automatically analysed for presentation balance, styling, body language and photographic coherence, without claiming real romantic compatibility.
 
 ## Verification evidence
 
@@ -139,6 +141,9 @@ Updated: 2026-10-27T21:02:00+08:00
 | `58084d4` | Render public API | Synthetic `/api/visual-match` request with reference image, same-size alpha mask and valid controls | Reached OpenAI Sunburst; provider returned HTTP 429 usage/billing limit through the app's safe error path |
 | `ec2c07b` | Render | deploy `dep-dbga24gm7kps73brp6k0` | Live |
 | `ec2c07b` | Render public API | Synthetic `/api/visual-match` request with reference image, same-size alpha mask and valid controls | Passed; HTTP 200 with a complete 768×1024 PNG |
+| `a3096bf` | Render | deploy `dep-dbgaag4s728c73dr5q6g` | Live; transparency recomposition removed |
+| `5c9ff43` | Render | deploy `dep-dbgac46k1f9s73bqb58g` | Live |
+| `5c9ff43` | Render public API | Synthetic generated couple submitted to `/api/visual-match-summary` | Passed; HTTP 200 with complete structured analysis that candidly identified a presentation mismatch |
 
 ## Live resources
 
@@ -148,4 +153,4 @@ Updated: 2026-10-27T21:02:00+08:00
 
 ## Next action
 
-Test Sunburst realism and the protected-source boundary on the user's own phone photo. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
+Regenerate the user's couple photo to verify that the transparency seam is gone, then use the new summary to assess attractiveness balance and realism. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
