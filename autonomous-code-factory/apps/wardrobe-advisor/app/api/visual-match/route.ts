@@ -29,6 +29,7 @@ export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   const form = await request.formData();
   const image = form.get("image");
+  const mask = form.get("mask");
   if (form.get("adultConfirmed") !== "true") {
     return errorResponse("Confirm that everyone in the uploaded photo is an adult and has consented.", 400, requestId);
   }
@@ -38,12 +39,27 @@ export async function POST(request: Request) {
   if (image.size > 10 * 1024 * 1024) {
     return errorResponse("Please choose an image under 10 MB.", 413, requestId);
   }
+  if (!(mask instanceof File) || mask.type !== "image/png") {
+    return errorResponse("The visual-match edit mask is missing or invalid.", 400, requestId);
+  }
+  if (mask.size > 4 * 1024 * 1024) {
+    return errorResponse("The visual-match edit mask is too large.", 413, requestId);
+  }
+  const outputSize = form.get("outputSize");
+  if (typeof outputSize !== "string" || !/^\d{2,4}x\d{2,4}$/.test(outputSize)) {
+    return errorResponse("The visual-match output dimensions are invalid.", 400, requestId);
+  }
+  const [outputWidth, outputHeight] = outputSize.split("x").map(Number);
+  if (outputWidth % 16 || outputHeight % 16 || outputWidth > 2160 || outputHeight > 2160 || outputWidth / outputHeight > 3 || outputHeight / outputWidth > 3) {
+    return errorResponse("The visual-match output dimensions are unsupported.", 400, requestId);
+  }
   const selections = parseSelections(form);
   if (!selections) return errorResponse("One or more visual-match options are invalid.", 400, requestId);
 
   try {
     const imageBase64 = Buffer.from(await image.arrayBuffer()).toString("base64");
-    const result = await generateVisualMatch(imageBase64, image.type, selections);
+    const maskBase64 = Buffer.from(await mask.arrayBuffer()).toString("base64");
+    const result = await generateVisualMatch(imageBase64, image.type, maskBase64, outputSize, selections);
     return NextResponse.json(
       { imageBase64: result.imageBase64, mimeType: result.mimeType },
       { headers: { "X-Request-ID": requestId, "Cache-Control": "no-store" } },

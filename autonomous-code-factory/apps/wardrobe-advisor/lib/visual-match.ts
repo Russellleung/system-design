@@ -24,7 +24,7 @@ export class VisualMatchProviderError extends Error {
   constructor(
     message: string,
     readonly details: {
-      provider: "cloudflare" | "gemini";
+      provider: "openai" | "cloudflare" | "gemini";
       model: string;
       providerStatus?: number;
       providerRequestId?: string | null;
@@ -37,11 +37,12 @@ export class VisualMatchProviderError extends Error {
   }
 }
 
-export type VisualMatchProvider = "cloudflare" | "gemini";
+export type VisualMatchProvider = "openai" | "cloudflare" | "gemini";
 
 export function selectedVisualMatchProvider(): VisualMatchProvider {
-  const provider = process.env.VISUAL_MATCH_PROVIDER ?? "cloudflare";
-  return provider === "gemini" ? "gemini" : "cloudflare";
+  const provider = process.env.VISUAL_MATCH_PROVIDER ?? "openai";
+  if (provider === "gemini" || provider === "cloudflare") return provider;
+  return "openai";
 }
 
 function words(value: string) {
@@ -70,15 +71,99 @@ export function buildVisualMatchPrompt(selections: VisualMatchSelections) {
     .filter(Boolean)
     .join("; ");
 
-  return `Make one surgical edit to the supplied photograph: add exactly one fictional adult woman ${selections.placement === "right" ? "on the original person's right" : "on the original person's left"} so the result looks like one natural, photorealistic happy-couple portrait.
+  return `Edit only the transparent area in the supplied mask. Add exactly one fictional adult woman ${selections.placement === "right" ? "on the right side of the frame" : "on the left side of the frame"} so the result looks like one natural, photorealistic happy-couple portrait.
 
-ABSOLUTE PRESERVATION RULE: treat every original pixel outside the new partner and any tiny area of unavoidable physical overlap as locked. Keep the original person exactly recognizable and unchanged: same face, expression, eyes, nose, mouth, jaw, skin texture, hair, body shape, pose, hands, clothes and accessories. Keep the original environment unchanged: same background, objects, framing, crop, camera angle, perspective, lighting, shadows, colour grade, sharpness and resolution. Do not beautify, redraw, retouch, reshape, relight, move, age, de-age, replace or restyle the original person. Do not remove, replace, extend or redesign the scene. If preservation conflicts with the requested pose or setting, preserve the source photo and simplify the new partner instead.
+ABSOLUTE PRESERVATION RULE: do not modify anything in the opaque, protected part of the mask. Keep the original person exactly recognizable and unchanged: same face, expression, eyes, nose, mouth, jaw, skin texture, hair, body shape, pose, hands, clothes and accessories. Keep the protected environment unchanged: same background, objects, framing, crop, camera angle, perspective, lighting, shadows, colour grade, sharpness and resolution. Do not beautify, redraw, retouch, reshape, relight, move, age, de-age, replace or restyle the original person. If preservation conflicts with a requested pose, preserve the source photo and simplify the new partner instead.
 
-The added woman must clearly be at least 21 years old. Place her naturally into available space, matching the existing camera perspective, lighting, shadows, focus, grain and colour. Her interaction with the original person should be affectionate but non-sexual and mutually comfortable. Do not change the original person's pose to create physical contact.
+The added woman must clearly be at least 21 years old. Place her fully inside the editable area, matching the existing camera perspective, lighting, shadows, focus, grain and colour. Keep a natural small gap from the original person; do not overlap, touch, cover or change the original person. Interpret any requested interactive pose as a visual mood only when literal contact would require changing protected pixels.
 
 ${chosen ? `Use these selected attributes for the fictional partner: ${chosen}.` : "Choose visually coherent adult features, clothing and energy for the added partner. Do not imply psychological, biological or racial compatibility."}
 
 Output the complete edited photograph, with exactly the original person plus one added fictional adult woman. Avoid duplicate people, extra limbs, text, logos and watermarks.`;
+}
+
+async function generateWithOpenAI(
+  imageBase64: string,
+  mimeType: string,
+  maskBase64: string,
+  outputSize: string,
+  selections: VisualMatchSelections,
+): Promise<GeneratedVisualMatch> {
+  const provider = "openai" as const;
+  const model = process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-2.5-sunburst";
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new VisualMatchProviderError("Visual Match is not connected to OpenAI image editing yet.", {
+      provider, model, providerCode: "missing_openai_api_key",
+    });
+  }
+
+  const imageBytes = Uint8Array.from(Buffer.from(imageBase64, "base64"));
+  const maskBytes = Uint8Array.from(Buffer.from(maskBase64, "base64"));
+  const extension = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
+  const form = new FormData();
+  form.append("model", model);
+  form.append("prompt", buildVisualMatchPrompt(selections));
+  form.append("image", new Blob([imageBytes], { type: mimeType }), `portrait.${extension}`);
+  form.append("mask", new Blob([maskBytes], { type: "image/png" }), "edit-mask.png");
+  form.append("quality", process.env.OPENAI_IMAGE_QUALITY ?? "high");
+  form.append("size", outputSize);
+  form.append("output_format", "png");
+  form.append("input_fidelity", "high");
+
+  let response: Response;
+  try {
+    response = await fetch("https://api.openai.com/v1/images/edits", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+      signal: AbortSignal.timeout(180_000),
+    });
+  } catch (error) {
+    throw new VisualMatchProviderError("OpenAI image editing timed out or could not be reached.", {
+      provider, model, providerCode: error instanceof Error ? error.name : "transport_error",
+    });
+  }
+
+  const providerRequestId = response.headers.get("x-request-id");
+  const responseText = await response.text();
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(responseText) as Record<string, unknown>;
+  } catch {
+    throw new VisualMatchProviderError("OpenAI returned an invalid image response.", {
+      provider, model, providerStatus: response.status, providerRequestId, providerCode: "invalid_provider_response",
+    });
+  }
+
+  if (!response.ok) {
+    const providerError = typeof payload.error === "object" && payload.error !== null
+      ? payload.error as Record<string, unknown>
+      : {};
+    const message = response.status === 429
+      ? "OpenAI image editing has reached its usage or billing limit."
+      : response.status === 401 || response.status === 403
+        ? "OpenAI image editing is not enabled for this account."
+        : "OpenAI could not create this visual match. Please try another photo.";
+    throw new VisualMatchProviderError(message, {
+      provider,
+      model,
+      providerStatus: response.status,
+      providerRequestId,
+      providerCode: typeof providerError.code === "string" ? providerError.code : undefined,
+      providerMessage: typeof providerError.message === "string" ? providerError.message : undefined,
+    });
+  }
+
+  const data = Array.isArray(payload.data) ? payload.data : [];
+  const first = typeof data[0] === "object" && data[0] !== null ? data[0] as Record<string, unknown> : {};
+  if (typeof first.b64_json !== "string" || first.b64_json.length === 0) {
+    throw new VisualMatchProviderError("OpenAI completed the request but did not return an image.", {
+      provider, model, providerRequestId, providerCode: "missing_output_image",
+    });
+  }
+
+  return { imageBase64: first.b64_json, mimeType: "image/png", providerRequestId };
 }
 
 function extractImage(result: Record<string, unknown>) {
@@ -304,9 +389,12 @@ async function generateWithCloudflare(
 export function generateVisualMatch(
   imageBase64: string,
   mimeType: string,
+  maskBase64: string,
+  outputSize: string,
   selections: VisualMatchSelections,
 ) {
-  return selectedVisualMatchProvider() === "gemini"
-    ? generateWithGemini(imageBase64, mimeType, selections)
-    : generateWithCloudflare(imageBase64, mimeType, selections);
+  const provider = selectedVisualMatchProvider();
+  if (provider === "gemini") return generateWithGemini(imageBase64, mimeType, selections);
+  if (provider === "cloudflare") return generateWithCloudflare(imageBase64, mimeType, selections);
+  return generateWithOpenAI(imageBase64, mimeType, maskBase64, outputSize, selections);
 }

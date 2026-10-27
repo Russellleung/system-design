@@ -16,8 +16,8 @@ Updated: 2026-10-27T15:11:27+08:00
 - Rate Me's analysis contract remains at the last pre-regression implementation from commit `433a31b`; later per-feature numeric scores and extra model fields remain intentionally absent.
 - Rate Me now groups the stable feature rows into Permanent physical features and Controllable presentation in the UI. This classification is deterministic and does not change the working Gemini prompt, schema, API route or validator.
 - A new `/visual-match` tab lets a consenting adult take or select and crop a portrait, then either delegate all creative choices or tune fixed height, build, appearance, adult-age, style, energy, pose and setting controls for one fictional adult woman.
-- Visual Match uses a provider-neutral partner-generation adapter. Cloudflare FLUX.2 Klein 4B is the default, and paid Gemini generation remains an explicit fallback. Neither path touches Rate Me's stable model contract; both avoid inferring racial/romantic compatibility and label the result as visual fiction.
-- Visual Match sends a resized reference photo to the selected image provider for a coherent full-frame edit. Its preservation-first prompt treats the source person, environment, framing and lighting as locked and tells the model to simplify the partner rather than change the source, while the UI accurately discloses that exact preservation is not deterministic.
+- Visual Match uses a provider-neutral adapter. OpenAI GPT Image 2.5 Sunburst is the default; Cloudflare and Gemini remain optional fallbacks. None of these paths touches Rate Me's stable model contract.
+- Visual Match keeps a higher-resolution reference, shows a 47% side-specific partner edit area, sends a matching alpha mask, then restores the original pixels outside that area and feathers the join. This combines local scene synthesis with a deterministic boundary around the protected person and environment.
 - The photo-ready UI discloses Gemini free-tier data use before submission.
 - A second `/photo-coach` tab provides technique-only angle, pose, framing and lighting advice.
 - Photo Coach can display, hide and mirror a deterministic dotted SVG pose guide selected from validated templates.
@@ -43,7 +43,7 @@ Updated: 2026-10-27T15:11:27+08:00
 
 - Saved wardrobes, authentication and Supabase provisioning are intentionally out of scope pending a product decision.
 - Cross-device Digital Twin sync remains intentionally out of scope; the current local-first store can be erased with browser data.
-- Visual Match generation is configured on Render. Phone QA is still needed to judge realism and how faithfully Cloudflare preserves the source person and environment across varied photos.
+- OpenAI Visual Match still needs a live Render generation check to confirm the existing server-side key has image-edit access and billing. Phone QA is then needed to judge realism across varied photos.
 
 ## Verification evidence
 
@@ -131,6 +131,8 @@ Updated: 2026-10-27T15:11:27+08:00
 | `c8a57ae` | Render | deploy `dep-dbg4s4sipgvc73eh9t80` | Live |
 | `c8a57ae` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me`, `/visual-match` and `/digital-twin` smoke tests | Passed |
 | `c8a57ae` | Render public API | Synthetic full-frame `/api/visual-match` edit with uploaded reference image and fixed controls | Passed; HTTP 200 with a complete JPEG result |
+| working tree 2026-10-27 | Local Node 23 / Docker Node 22 | Project validation, ESLint, portable production build, container build and all six route smoke tests after adding OpenAI masked regional editing | Passed |
+| working tree 2026-10-27 | Local Docker | `/api/visual-match` with image, PNG mask and valid options but no OpenAI key | Passed; HTTP 503 configuration guard without a provider call |
 
 ## Live resources
 
@@ -140,4 +142,4 @@ Updated: 2026-10-27T15:11:27+08:00
 
 ## Next action
 
-Test the deployed full-frame edit's realism and source fidelity on the user's own phone photo. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
+Deploy the OpenAI masked-edit build, verify the provider configuration, then test realism and the protected-source boundary on the user's own phone photo. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.

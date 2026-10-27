@@ -33,8 +33,8 @@ A visitor chooses one of five tabs. Wardrobe analysis inventories visible clothi
 - [x] Add a separate Visual Match tab with camera/library upload, client-side cropping and explicit adult consent.
 - [x] Let the user either delegate all partner/scene choices or tune height, build, appearance, adult age, style, energy, pose and setting through fixed selections.
 - [x] Label the generated woman as fictional and avoid claims that visual composition predicts romantic, racial or psychological compatibility.
-- [x] Use Cloudflare FLUX.2 Klein 4B and its hard-stopping free daily allocation by default; keep paid Gemini image generation as an explicit fallback only.
-- [x] Use full-frame generative editing for a coherent result, with strict best-effort instructions to preserve the original person and environment.
+- [x] Use OpenAI GPT Image 2.5 Sunburst with a side-specific edit mask by default; keep Cloudflare and Gemini as optional fallbacks.
+- [x] Restore the original pixels outside the masked partner region after generation while feathering the join for a coherent result.
 - [x] Explain visible attractive and less-attractive features plus possible positive and negative reactions from adult women without claiming universal preferences.
 - [x] Generate three non-identifying reference-image searches for grooming, styling/pose and setting; send only search text when the user opens a provider link.
 - [x] Give tentative face-shape, body-silhouette, colour and haircut direction plus searchable shirt, pants, palette and haircut upgrades.
@@ -51,4 +51,4 @@ One photo is not treated as the complete wardrobe or a complete account of a per
 
 ## Current stack
 
-Next.js/TypeScript provides the mobile UI and server endpoint in one deployable service. The app builds into an OCI-compatible Docker image and currently runs on Render's free web-service plan in Singapore. Gemini provides multimodal analysis by default through a provider adapter, with OpenAI retained as a fallback. Supabase configuration exists only as a future migration path.
+Next.js/TypeScript provides the mobile UI and server endpoint in one deployable service. The app builds into an OCI-compatible Docker image and currently runs on Render's free web-service plan in Singapore. Gemini provides multimodal analysis by default through a provider adapter. OpenAI GPT Image 2.5 Sunburst provides masked Visual Match editing. Supabase configuration exists only as a future migration path.
