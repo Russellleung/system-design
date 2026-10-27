@@ -16,8 +16,8 @@ Updated: 2026-10-26T22:24:13+08:00
 - Rate Me's analysis contract remains at the last pre-regression implementation from commit `433a31b`; later per-feature numeric scores and extra model fields remain intentionally absent.
 - Rate Me now groups the stable feature rows into Permanent physical features and Controllable presentation in the UI. This classification is deterministic and does not change the working Gemini prompt, schema, API route or validator.
 - A new `/visual-match` tab lets a consenting adult take or select and crop a portrait, then either delegate all creative choices or tune fixed height, build, appearance, adult-age, style, energy, pose and setting controls for one fictional adult woman.
-- Visual Match uses a separate Gemini image-editing adapter and `GEMINI_IMAGE_MODEL` gate. It does not touch Rate Me's stable model contract, never infers racial/romantic compatibility, and labels the result as visual fiction.
-- `GEMINI_IMAGE_MODEL` remains unset because current Gemini image generation has no API free tier. The deployed UI will return a clear configuration message instead of silently incurring spend.
+- Visual Match uses a provider-neutral image-editing adapter. Cloudflare FLUX.2 Klein 4B is the default, and paid Gemini image editing remains an explicit fallback. Neither path touches Rate Me's stable model contract; both avoid inferring racial/romantic compatibility and label the result as visual fiction.
+- The browser resizes Visual Match reference photos below Cloudflare's 512×512 input ceiling before upload. The API requests a 1024×1280 output and translates daily allowance exhaustion into a clear retry-after-reset message.
 - The photo-ready UI discloses Gemini free-tier data use before submission.
 - A second `/photo-coach` tab provides technique-only angle, pose, framing and lighting advice.
 - Photo Coach can display, hide and mirror a deterministic dotted SVG pose guide selected from validated templates.
@@ -41,7 +41,7 @@ Updated: 2026-10-26T22:24:13+08:00
 
 - Saved wardrobes, authentication and Supabase provisioning are intentionally out of scope pending a product decision.
 - Cross-device Digital Twin sync remains intentionally out of scope; the current local-first store can be erased with browser data.
-- End-to-end Visual Match generation awaits explicit approval of Gemini image-generation spend and provider-side billing controls. The lowest documented 1K option is roughly US$0.034 per generation.
+- End-to-end Visual Match generation awaits a Cloudflare account ID and narrowly scoped Workers AI API token in Render. No paid plan is required; the free plan stops at its daily limit.
 
 ## Verification evidence
 
@@ -114,6 +114,8 @@ Updated: 2026-10-26T22:24:13+08:00
 | `a26ab6e` | Render | deploy `dep-dbg49nec6qcc73ea0t50` | Live |
 | `a26ab6e` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me`, `/visual-match` and `/digital-twin` smoke tests | Passed |
 | `a26ab6e` | Render public API | `/api/visual-match` with valid fixed-choice fields while `GEMINI_IMAGE_MODEL` is unset | Passed; HTTP 503 paid-model guard without a provider call |
+| working tree 2026-10-27 | Local Node 23 / Docker Node 22 | Project validation, ESLint, production build, Docker image build and all six route smoke tests after adding Cloudflare FLUX | Passed |
+| working tree 2026-10-27 | Local Docker | `/api/visual-match` without Cloudflare credentials | Passed; HTTP 503 configuration guard without a provider call |
 
 ## Live resources
 
@@ -123,4 +125,4 @@ Updated: 2026-10-26T22:24:13+08:00
 
 ## Next action
 
-Review the Visual Match page on the user's phone. Only after the owner explicitly approves approximately US$0.034 per 1K generation should `GEMINI_IMAGE_MODEL=gemini-3.1-flash-lite-image` be configured and tested with a consenting adult-owned photo. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
+Configure `CLOUDFLARE_ACCOUNT_ID` and a narrowly scoped `CLOUDFLARE_API_TOKEN` in Render, then test Visual Match with a consenting adult-owned photo and review identity preservation on the user's phone. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.

@@ -23,6 +23,7 @@ export class VisualMatchProviderError extends Error {
   constructor(
     message: string,
     readonly details: {
+      provider: "cloudflare" | "gemini";
       model: string;
       providerStatus?: number;
       providerRequestId?: string | null;
@@ -33,6 +34,13 @@ export class VisualMatchProviderError extends Error {
     super(message);
     this.name = "VisualMatchProviderError";
   }
+}
+
+export type VisualMatchProvider = "cloudflare" | "gemini";
+
+export function selectedVisualMatchProvider(): VisualMatchProvider {
+  const provider = process.env.VISUAL_MATCH_PROVIDER ?? "cloudflare";
+  return provider === "gemini" ? "gemini" : "cloudflare";
 }
 
 function words(value: string) {
@@ -99,22 +107,23 @@ function extractImage(result: Record<string, unknown>) {
   return null;
 }
 
-export async function generateVisualMatch(
+async function generateWithGemini(
   imageBase64: string,
   mimeType: string,
   selections: VisualMatchSelections,
 ): Promise<GeneratedVisualMatch> {
+  const provider = "gemini" as const;
   const model = process.env.GEMINI_IMAGE_MODEL;
   const apiKey = process.env.GEMINI_API_KEY;
   if (!model) {
     throw new VisualMatchProviderError(
       "Visual Match is built but image generation is not enabled. The current Gemini image models are paid-only.",
-      { model: "not-configured", providerCode: "missing_gemini_image_model" },
+      { provider, model: "not-configured", providerCode: "missing_gemini_image_model" },
     );
   }
   if (!apiKey) {
     throw new VisualMatchProviderError("Visual Match is not connected to Gemini yet.", {
-      model,
+      provider, model,
       providerCode: "missing_gemini_api_key",
     });
   }
@@ -145,7 +154,7 @@ export async function generateVisualMatch(
     });
   } catch (error) {
     throw new VisualMatchProviderError("Image generation timed out or could not be reached. Please try again.", {
-      model,
+      provider, model,
       providerCode: error instanceof Error ? error.name : "transport_error",
     });
   }
@@ -157,7 +166,7 @@ export async function generateVisualMatch(
     result = JSON.parse(responseText) as Record<string, unknown>;
   } catch {
     throw new VisualMatchProviderError("Gemini returned an invalid image response.", {
-      model,
+      provider, model,
       providerStatus: response.status,
       providerRequestId,
       providerCode: "invalid_provider_response",
@@ -174,7 +183,7 @@ export async function generateVisualMatch(
         ? "Image generation is not enabled for this Gemini account."
         : "Gemini could not create this visual match. Please try another photo.";
     throw new VisualMatchProviderError(message, {
-      model,
+      provider, model,
       providerStatus: response.status,
       providerRequestId,
       providerCode: typeof providerError.status === "string" ? providerError.status : undefined,
@@ -185,11 +194,109 @@ export async function generateVisualMatch(
   const image = extractImage(result);
   if (!image) {
     throw new VisualMatchProviderError("Gemini completed the request but did not return an image.", {
-      model,
+      provider, model,
       providerRequestId,
       providerCode: "missing_output_image",
     });
   }
 
   return { ...image, providerRequestId };
+}
+
+async function generateWithCloudflare(
+  imageBase64: string,
+  mimeType: string,
+  selections: VisualMatchSelections,
+): Promise<GeneratedVisualMatch> {
+  const provider = "cloudflare" as const;
+  const model = process.env.CLOUDFLARE_IMAGE_MODEL ?? "@cf/black-forest-labs/flux-2-klein-4b";
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+  if (!accountId || !apiToken) {
+    throw new VisualMatchProviderError(
+      "Visual Match needs its free Cloudflare Workers AI connection configured.",
+      { provider, model, providerCode: "missing_cloudflare_credentials" },
+    );
+  }
+
+  const imageBytes = Uint8Array.from(Buffer.from(imageBase64, "base64"));
+  const form = new FormData();
+  form.append("prompt", buildVisualMatchPrompt(selections));
+  form.append("input_image_0", new Blob([imageBytes], { type: mimeType }), "portrait.jpg");
+  form.append("width", "1024");
+  form.append("height", "1280");
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/run/${model}`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiToken}` },
+        body: form,
+        signal: AbortSignal.timeout(120_000),
+      },
+    );
+  } catch (error) {
+    throw new VisualMatchProviderError("Cloudflare image generation timed out or could not be reached.", {
+      provider,
+      model,
+      providerCode: error instanceof Error ? error.name : "transport_error",
+    });
+  }
+
+  const providerRequestId = response.headers.get("cf-ray");
+  const responseText = await response.text();
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(responseText) as Record<string, unknown>;
+  } catch {
+    throw new VisualMatchProviderError("Cloudflare returned an invalid image response.", {
+      provider, model, providerStatus: response.status, providerRequestId, providerCode: "invalid_provider_response",
+    });
+  }
+
+  const result = typeof payload.result === "object" && payload.result !== null
+    ? payload.result as Record<string, unknown>
+    : {};
+  if (!response.ok || payload.success === false) {
+    const errors = Array.isArray(payload.errors) ? payload.errors : [];
+    const firstError = typeof errors[0] === "object" && errors[0] !== null
+      ? errors[0] as Record<string, unknown>
+      : {};
+    const quotaExceeded = response.status === 429 || firstError.code === 3040;
+    throw new VisualMatchProviderError(
+      quotaExceeded
+        ? "The free daily image-generation allowance has been used. Please try again after 00:00 UTC."
+        : response.status === 401 || response.status === 403
+          ? "Cloudflare Workers AI is not configured correctly."
+          : "Cloudflare could not create this visual match. Please try another photo.",
+      {
+        provider,
+        model,
+        providerStatus: response.status,
+        providerRequestId,
+        providerCode: typeof firstError.code === "number" || typeof firstError.code === "string" ? String(firstError.code) : undefined,
+        providerMessage: typeof firstError.message === "string" ? firstError.message : undefined,
+      },
+    );
+  }
+
+  if (typeof result.image !== "string" || result.image.length === 0) {
+    throw new VisualMatchProviderError("Cloudflare completed the request but did not return an image.", {
+      provider, model, providerRequestId, providerCode: "missing_output_image",
+    });
+  }
+
+  return { imageBase64: result.image, mimeType: "image/jpeg", providerRequestId };
+}
+
+export function generateVisualMatch(
+  imageBase64: string,
+  mimeType: string,
+  selections: VisualMatchSelections,
+) {
+  return selectedVisualMatchProvider() === "gemini"
+    ? generateWithGemini(imageBase64, mimeType, selections)
+    : generateWithCloudflare(imageBase64, mimeType, selections);
 }

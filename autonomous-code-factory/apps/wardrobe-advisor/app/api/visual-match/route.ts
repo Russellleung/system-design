@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   generateVisualMatch,
+  selectedVisualMatchProvider,
   type VisualMatchSelections,
   VisualMatchProviderError,
   visualMatchOptions,
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     if (error instanceof VisualMatchProviderError) {
-      console.error(JSON.stringify({ event: "visual_match_provider_error", requestId, ...error.details }));
+      console.error(JSON.stringify({ event: "visual_match_provider_error", requestId, selectedProvider: selectedVisualMatchProvider(), ...error.details }));
       const configurationError = error.details.providerCode?.startsWith("missing_");
       return errorResponse(error.message, configurationError ? 503 : error.details.providerStatus ? 502 : 504, requestId);
     }

@@ -47,6 +47,34 @@ const groups: ChoiceGroup[] = [
 
 const aiSelections = Object.fromEntries(groups.map((group) => [group.key, "ai"])) as VisualMatchSelections;
 
+async function prepareCloudflareReference(source: File) {
+  const sourceUrl = URL.createObjectURL(source);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error("This photo could not be prepared for image generation."));
+      element.src = sourceUrl;
+    });
+    const scale = Math.min(1, 511 / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("This browser cannot prepare the photo.");
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
+      (value) => value ? resolve(value) : reject(new Error("The resized photo could not be created.")),
+      "image/jpeg",
+      0.9,
+    ));
+    const baseName = source.name.replace(/\.[^.]+$/, "") || "visual-match";
+    return new File([blob], `${baseName}-reference.jpg`, { type: "image/jpeg", lastModified: Date.now() });
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
 export default function VisualMatchPage() {
   const cameraInput = useRef<HTMLInputElement>(null);
   const libraryInput = useRef<HTMLInputElement>(null);
@@ -80,15 +108,22 @@ export default function VisualMatchPage() {
     setMessage("");
   }
 
-  function applyCrop(nextFile: File) {
-    if (preview) URL.revokeObjectURL(preview);
-    setFile(nextFile);
-    setPreview(URL.createObjectURL(nextFile));
-    setCropFile(null);
-    setCropPreview(null);
-    setResult(null);
-    setConfirmedAdult(false);
-    setStatus("idle");
+  async function applyCrop(nextFile: File) {
+    try {
+      const preparedFile = await prepareCloudflareReference(nextFile);
+      if (preview) URL.revokeObjectURL(preview);
+      setFile(preparedFile);
+      setPreview(URL.createObjectURL(preparedFile));
+      setCropFile(null);
+      setCropPreview(null);
+      setResult(null);
+      setConfirmedAdult(false);
+      setStatus("idle");
+      setMessage("");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "The photo could not be prepared.");
+    }
   }
 
   function setChoice(key: keyof VisualMatchSelections, value: string) {
@@ -161,7 +196,7 @@ export default function VisualMatchPage() {
           {!tuning ? <div className="mt-6 rounded-2xl border border-[#9f3d61]/15 bg-[#fbf4f6] p-5 text-sm leading-6 text-[#6a5960]">AI will choose a fictional adult partner and scene for visual balance only. It will not infer who you are compatible with from race, face or body.</div> : <div className="mt-6 grid gap-5 sm:grid-cols-2">{groups.map((group) => <label key={group.key} className="text-sm font-semibold">{group.label}<select value={selections[group.key]} onChange={(event) => setChoice(group.key, event.target.value)} className="mt-2 w-full rounded-xl border border-[#20251f]/15 bg-white px-3 py-3 font-normal outline-none focus:border-[#9f3d61]">{group.choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</select></label>)}</div>}
 
           <label className="mt-6 flex cursor-pointer gap-3 rounded-2xl bg-[#f2eee7] p-4 text-sm leading-5"><input type="checkbox" checked={confirmedAdult} onChange={(event) => setConfirmedAdult(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#9f3d61]"/><span>I confirm that the person in my photo is 18+ and has consented to this AI image edit.</span></label>
-          <p className="mt-4 text-xs leading-5 text-[#777168]">Your photo is sent to Google Gemini and is not stored by Closet Compass. Image generation currently requires a paid Gemini image model and costs roughly US$0.034 for one 1K result.</p>
+          <p className="mt-4 text-xs leading-5 text-[#777168]">Your resized reference photo is sent to Cloudflare Workers AI and is not stored by Closet Compass. The free plan stops generation when its daily allowance is exhausted rather than charging for overage.</p>
           <button disabled={!confirmedAdult || status === "generating"} onClick={generate} className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-[#9f3d61] px-5 py-3.5 font-bold text-white disabled:opacity-45">{status === "generating" ? <><LoaderCircle className="animate-spin" size={18}/> Creating your couple…</> : <><Heart size={18}/> Create visual match</>}</button>
           {status === "error" && <p className="mt-4 rounded-2xl bg-[#f5dfe5] p-4 text-sm leading-6 text-[#782d47]">{message}</p>}
           {result && <button onClick={() => { setResult(null); setStatus("idle"); }} className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-[#20251f]/15 px-5 py-3 text-sm font-semibold"><RotateCcw size={16}/> Try different choices</button>}

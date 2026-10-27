@@ -27,7 +27,7 @@
   "providers": {
     "application": "render",
     "database": null,
-    "ai": "gemini-with-openai-fallback"
+    "ai": "gemini-analysis-with-openai-fallback-and-cloudflare-image-editing"
   },
   "permissions": {
     "createFreeResources": false,

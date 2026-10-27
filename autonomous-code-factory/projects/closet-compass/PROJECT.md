@@ -33,7 +33,7 @@ A visitor chooses one of five tabs. Wardrobe analysis inventories visible clothi
 - [x] Add a separate Visual Match tab with camera/library upload, client-side cropping and explicit adult consent.
 - [x] Let the user either delegate all partner/scene choices or tune height, build, appearance, adult age, style, energy, pose and setting through fixed selections.
 - [x] Label the generated woman as fictional and avoid claims that visual composition predicts romantic, racial or psychological compatibility.
-- [x] Keep paid Gemini image generation disabled unless `GEMINI_IMAGE_MODEL` is explicitly configured.
+- [x] Use Cloudflare FLUX.2 Klein 4B and its hard-stopping free daily allocation by default; keep paid Gemini image generation as an explicit fallback only.
 - [x] Explain visible attractive and less-attractive features plus possible positive and negative reactions from adult women without claiming universal preferences.
 - [x] Generate three non-identifying reference-image searches for grooming, styling/pose and setting; send only search text when the user opens a provider link.
 - [x] Give tentative face-shape, body-silhouette, colour and haircut direction plus searchable shirt, pants, palette and haircut upgrades.

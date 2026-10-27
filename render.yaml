@@ -16,7 +16,15 @@ services:
         sync: false
       - key: GEMINI_VISION_MODEL
         value: gemini-3.5-flash-lite
-      # Paid image generation is deliberately off until explicitly approved.
+      - key: VISUAL_MATCH_PROVIDER
+        value: cloudflare
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: CLOUDFLARE_IMAGE_MODEL
+        value: "@cf/black-forest-labs/flux-2-klein-4b"
+      # Optional paid fallback; not used while Visual Match selects Cloudflare.
       - key: GEMINI_IMAGE_MODEL
         value: ""
       - key: OPENAI_API_KEY
