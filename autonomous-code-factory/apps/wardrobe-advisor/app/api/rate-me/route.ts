@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { analyseDatingPhoto, parseDatingPhotoRating } from "@/lib/rate-me";
+import { analyseDatingPhoto, datingSubjectModes, parseDatingPhotoRating, type DatingSubjectMode } from "@/lib/rate-me";
 import { VisionProviderError } from "@/lib/vision-analysis";
 
 export const runtime = "nodejs";
@@ -14,15 +14,19 @@ export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   const form = await request.formData();
   const image = form.get("image");
+  const subjectMode = form.get("subjectMode");
   const adultConfirmed = form.get("adultConfirmed") === "true";
   if (!adultConfirmed) return errorResponse("Confirm that everyone shown is 18+ and consented to appearance feedback.", 400, requestId);
   if (!(image instanceof File) || !supportedImageTypes.has(image.type)) {
     return errorResponse("Please upload a JPEG, PNG, WebP or non-animated GIF image.", 400, requestId);
   }
+  if (typeof subjectMode !== "string" || !datingSubjectModes.includes(subjectMode as DatingSubjectMode)) {
+    return errorResponse("Choose whether the photo is being reviewed for a man or a woman.", 400, requestId);
+  }
   if (image.size > 10 * 1024 * 1024) return errorResponse("Please choose an image under 10 MB.", 413, requestId);
 
   try {
-    const result = await analyseDatingPhoto(Buffer.from(await image.arrayBuffer()).toString("base64"), image.type);
+    const result = await analyseDatingPhoto(Buffer.from(await image.arrayBuffer()).toString("base64"), image.type, subjectMode as DatingSubjectMode);
     if (!result.outputText) return errorResponse("No rating was returned. Please try again.", 502, requestId);
     const analysis = parseDatingPhotoRating(result.outputText);
     if (!analysis) return errorResponse("The rating was incomplete. Please retry.", 502, requestId);

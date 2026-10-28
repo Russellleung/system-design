@@ -4,7 +4,7 @@ import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { Camera, Download, Heart, ImagePlus, LoaderCircle, RotateCcw, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react";
 import { AppNav } from "@/components/app-nav";
 import { PhotoCropper } from "@/components/photo-cropper";
-import type { VisualMatchSelections } from "@/lib/visual-match";
+import type { VisualMatchSelections, VisualMatchSubjectMode } from "@/lib/visual-match";
 import type { VisualMatchAnalysis } from "@/lib/visual-match-analysis";
 
 type Choice = { value: string; label: string };
@@ -119,6 +119,7 @@ export default function VisualMatchPage() {
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [cropPreview, setCropPreview] = useState<string | null>(null);
   const [selections, setSelections] = useState<VisualMatchSelections>(aiSelections);
+  const [subjectMode, setSubjectMode] = useState<VisualMatchSubjectMode>("man");
   const [tuning, setTuning] = useState(false);
   const [confirmedAdult, setConfirmedAdult] = useState(false);
   const [confirmedClearZone, setConfirmedClearZone] = useState(false);
@@ -178,6 +179,16 @@ export default function VisualMatchPage() {
     }
   }
 
+  function changeSubjectMode(nextMode: VisualMatchSubjectMode) {
+    if (nextMode === subjectMode) return;
+    setSubjectMode(nextMode);
+    setResult(null);
+    setAnalysis(null);
+    setAnalysisStatus("idle");
+    setStatus("idle");
+    setMessage("");
+  }
+
   function useAiChoices() {
     setSelections((current) => ({ ...aiSelections, placement: current.placement }));
     setTuning(false);
@@ -202,6 +213,7 @@ export default function VisualMatchPage() {
     const form = new FormData();
     form.append("image", file);
     form.append("adultConfirmed", "true");
+    form.append("subjectMode", subjectMode);
     for (const [key, value] of Object.entries(selections)) form.append(key, value);
     try {
       const mask = await createPlacementMask(file, selections.placement, maskWidthPercent);
@@ -247,6 +259,8 @@ export default function VisualMatchPage() {
     setFile(null); setPreview(null); setResult(null); setAnalysis(null); setAnalysisStatus("idle"); setAnalysisMessage(""); setConfirmedAdult(false); setConfirmedClearZone(false); setStatus("idle"); setMessage("");
   }
 
+  const partnerLabel = subjectMode === "man" ? "woman" : "man";
+
   return <main className="min-h-screen bg-[#fbf8f2] text-[#20251f]">
     <AppNav active="visual-match" />
     {cropFile && cropPreview && <PhotoCropper sourceFile={cropFile} sourceUrl={cropPreview} onApply={applyCrop} onCancel={() => { URL.revokeObjectURL(cropPreview); setCropFile(null); setCropPreview(null); }}/>} 
@@ -283,9 +297,16 @@ export default function VisualMatchPage() {
 
         <div className="min-w-0 rounded-[2rem] bg-[#fffdf9] p-6 shadow-sm ring-1 ring-black/5 sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.17em] text-[#9f3d61]">Creative direction</p><h2 className="mt-2 font-serif text-4xl tracking-[-0.035em]">Who stands beside you?</h2></div>{tuning && <button onClick={useAiChoices} className="flex items-center gap-2 rounded-full border border-[#20251f]/15 px-4 py-2 text-sm font-semibold"><Sparkles size={15}/> Reset to AI</button>}</div>
+          <div className="mt-6 rounded-2xl border border-[#9f3d61]/15 bg-[#fbf4f6] p-1">
+            <div role="tablist" aria-label="Choose who appears in the source photo" className="grid grid-cols-2 gap-1">
+              <button type="button" role="tab" aria-selected={subjectMode === "man"} onClick={() => changeSubjectMode("man")} className={`rounded-xl px-3 py-3 text-sm font-bold ${subjectMode === "man" ? "bg-[#9f3d61] text-white" : "text-[#754257]"}`}>Photo: man</button>
+              <button type="button" role="tab" aria-selected={subjectMode === "woman"} onClick={() => changeSubjectMode("woman")} className={`rounded-xl px-3 py-3 text-sm font-bold ${subjectMode === "woman" ? "bg-[#9f3d61] text-white" : "text-[#754257]"}`}>Photo: woman</button>
+            </div>
+            <p className="px-3 pb-2 pt-3 text-xs leading-5 text-[#6a5960]">A fictional adult {partnerLabel} will be added. The app follows your selection and does not guess gender from appearance.</p>
+          </div>
           <div className="mt-6 grid grid-cols-2 rounded-2xl bg-[#f3e6eb] p-1"><button onClick={useAiChoices} className={`rounded-xl px-4 py-3 text-sm font-bold ${!tuning ? "bg-[#9f3d61] text-white" : "text-[#754257]"}`}>AI chooses</button><button onClick={() => setTuning(true)} className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold ${tuning ? "bg-[#9f3d61] text-white" : "text-[#754257]"}`}><SlidersHorizontal size={15}/> Tune it</button></div>
 
-          {!tuning ? <div className="mt-6 rounded-2xl border border-[#9f3d61]/15 bg-[#fbf4f6] p-5 text-sm leading-6 text-[#6a5960]">OpenAI will add a fictional adult partner inside the marked edit area. It is directed to create a believable visual peer with comparable attractiveness, age, grooming and photographic polish—not a generic fashion model. Keep your entire head and body outside the pink area so Sunburst can preserve you through its edit mask. It will not match ethnicity or claim real compatibility.</div> : <div className="mt-6 grid gap-5 sm:grid-cols-2">{attributeGroups.map((group) => <label key={group.key} className="text-sm font-semibold">{group.label}<select value={selections[group.key]} onChange={(event) => setChoice(group.key, event.target.value)} className="mt-2 w-full rounded-xl border border-[#20251f]/15 bg-white px-3 py-3 font-normal outline-none focus:border-[#9f3d61]">{group.choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</select></label>)}</div>}
+          {!tuning ? <div className="mt-6 rounded-2xl border border-[#9f3d61]/15 bg-[#fbf4f6] p-5 text-sm leading-6 text-[#6a5960]">OpenAI will add a fictional adult {partnerLabel} inside the marked edit area. It is directed to create a believable visual peer with comparable attractiveness, age, grooming and photographic polish—not a generic fashion model. Keep your entire head and body outside the pink area so Sunburst can preserve you through its edit mask. It will not match ethnicity or claim real compatibility.</div> : <div className="mt-6 grid gap-5 sm:grid-cols-2">{attributeGroups.map((group) => <label key={group.key} className="text-sm font-semibold">{group.label}<select value={selections[group.key]} onChange={(event) => setChoice(group.key, event.target.value)} className="mt-2 w-full rounded-xl border border-[#20251f]/15 bg-white px-3 py-3 font-normal outline-none focus:border-[#9f3d61]">{group.choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</select></label>)}</div>}
 
           <fieldset className="mt-6"><legend className="text-sm font-semibold">Where is the empty space?</legend><p className="mt-1 text-xs leading-5 text-[#777168]">Choose the side that does not cover any part of you in pink.</p><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => setChoice("placement", "left")} className={`rounded-xl px-4 py-3 text-sm font-bold ${selections.placement === "left" ? "bg-[#20251f] text-white" : "border border-[#20251f]/15 bg-white"}`}>Add partner left</button><button type="button" onClick={() => setChoice("placement", "right")} className={`rounded-xl px-4 py-3 text-sm font-bold ${selections.placement === "right" ? "bg-[#20251f] text-white" : "border border-[#20251f]/15 bg-white"}`}>Add partner right</button></div></fieldset>
 
@@ -306,7 +327,7 @@ export default function VisualMatchPage() {
         </div>
       </div>}
 
-      <aside className="mt-8 rounded-[1.7rem] border border-[#20251f]/10 bg-[#f1ede5] p-6 sm:p-8"><p className="flex items-center gap-2 font-semibold"><ShieldCheck size={18}/> What this does—and does not mean</p><p className="mt-3 max-w-4xl text-sm leading-6 text-[#667168]">The generated woman is fictional. The result explores how two people might look in one photograph; it does not measure attraction, personality, relationship success or real compatibility. AI-chosen traits are composition choices, not judgments about which race, body or age “belongs” with you.</p></aside>
+      <aside className="mt-8 rounded-[1.7rem] border border-[#20251f]/10 bg-[#f1ede5] p-6 sm:p-8"><p className="flex items-center gap-2 font-semibold"><ShieldCheck size={18}/> What this does—and does not mean</p><p className="mt-3 max-w-4xl text-sm leading-6 text-[#667168]">The generated {partnerLabel} is fictional. The result explores how two people might look in one photograph; it does not measure attraction, personality, relationship success or real compatibility. AI-chosen traits are composition choices, not judgments about which race, body or age “belongs” with you.</p></aside>
 
       <input ref={cameraInput} type="file" accept="image/*" capture="user" onChange={choosePhoto} className="sr-only"/>
       <input ref={libraryInput} type="file" accept="image/jpeg,image/png,image/webp" onChange={choosePhoto} className="sr-only"/>

@@ -37,6 +37,7 @@ A visitor chooses one of five tabs. Wardrobe analysis inventories visible clothi
 - [x] Use Sunburst's edit mask and return its coherent output directly, without a second browser alpha blend that creates a visible vertical seam.
 - [x] Direct Visual Match to create an aesthetically harmonious partner in the same broad physical-attractiveness and presentation tier instead of defaulting to an idealised model.
 - [x] Calibrate the source person's visible physical attractiveness separately from grooming and photographic polish before paid generation, then use a downward-adjusted partner target to counter repeated model beauty bias.
+- [x] Support explicit man and woman modes in Rate Me and Visual Match without guessing gender from the uploaded photo; switch the audience lens and generated partner accordingly.
 - [x] Analyse the completed fictional-couple image and concisely explain presentation balance, styling, body language and photographic coherence without claiming real compatibility.
 - [x] Keep partner-side placement visible, mark the redrawable mask clearly and require the source person to remain completely outside it before generation.
 - [x] Explain visible attractive and less-attractive features plus possible positive and negative reactions from adult women without claiming universal preferences.

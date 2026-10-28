@@ -73,7 +73,7 @@ export function parseVisualMatchProfile(outputText: string): VisualMatchProfile 
   return profile as VisualMatchProfile;
 }
 
-export function visualMatchProfilePrompt(profile: VisualMatchProfile) {
+export function visualMatchProfilePrompt(profile: VisualMatchProfile, partnerGender: "man" | "woman") {
   const compensatedTarget = Math.max(1, profile.physicalAttractivenessScore - 1);
   return `INDEPENDENT SOURCE CALIBRATION — treat this as a hard constraint, not a suggestion:
 - source visible physical-attractiveness score: ${profile.physicalAttractivenessScore}/9
@@ -84,5 +84,5 @@ export function visualMatchProfilePrompt(profile: VisualMatchProfile) {
 - source expression: ${profile.expression}
 - source broad adult-age presentation: ${profile.agePresentation}
 
-The target is intentionally one point below the source score to counter the image model's tendency to beautify generated women. Do not compensate by improving the source person. Match the partner's grooming, styling effort, expression and photographic polish to the source classifications exactly. If a user-selected option conflicts with this calibration, the calibration wins.`;
+The target is intentionally one point below the source score to counter the image model's tendency to idealise a generated ${partnerGender}. Do not compensate by improving the source person. Match the partner's grooming, styling effort, expression and photographic polish to the source classifications exactly. If a user-selected option conflicts with this calibration, the calibration wins.`;
 }

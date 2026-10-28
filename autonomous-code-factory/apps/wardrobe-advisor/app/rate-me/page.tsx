@@ -4,7 +4,7 @@ import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { Camera, Check, ExternalLink, ImagePlus, LoaderCircle, RotateCcw, Search, ShieldCheck, Sparkles, Star } from "lucide-react";
 import { AppNav } from "@/components/app-nav";
 import { PhotoCropper } from "@/components/photo-cropper";
-import type { DatingPhotoRating } from "@/lib/rate-me";
+import type { DatingPhotoRating, DatingSubjectMode } from "@/lib/rate-me";
 
 type AppearanceFeature = DatingPhotoRating["facialFeatures"][number];
 
@@ -98,6 +98,7 @@ const demoRating: DatingPhotoRating = {
 export default function RateMePage() {
   const libraryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [subjectMode, setSubjectMode] = useState<DatingSubjectMode>("man");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [cropSourceFile, setCropSourceFile] = useState<File | null>(null);
@@ -144,6 +145,14 @@ export default function RateMePage() {
     setCropSourcePreview(null);
   }
 
+  function changeSubjectMode(nextMode: DatingSubjectMode) {
+    if (nextMode === subjectMode) return;
+    setSubjectMode(nextMode);
+    setRating(null);
+    setStatus("idle");
+    setMessage("");
+  }
+
   async function ratePhoto() {
     if (!file || !confirmedAdult) return;
     setStatus("analysing");
@@ -151,6 +160,7 @@ export default function RateMePage() {
     const form = new FormData();
     form.append("image", file);
     form.append("adultConfirmed", "true");
+    form.append("subjectMode", subjectMode);
     try {
       const response = await fetch("/api/rate-me", { method: "POST", body: form });
       const payload = (await response.json()) as DatingPhotoRating & { error?: string; requestId?: string };
@@ -184,6 +194,8 @@ export default function RateMePage() {
     return `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(query)}`;
   }
 
+  const audience = subjectMode === "man" ? "women" : "men";
+
   return <main className="min-h-screen bg-[#f4f0e7] text-[#20251f]">
     <AppNav active="rate-me" />
     {cropSourceFile && cropSourcePreview && <PhotoCropper sourceFile={cropSourceFile} sourceUrl={cropSourcePreview} onApply={applyCrop} onCancel={cancelCrop}/>}
@@ -196,6 +208,13 @@ export default function RateMePage() {
 
     <section className="border-y border-[#20251f]/10 bg-[#fbf9f3]">
       <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
+        <div className="mb-7 rounded-[1.5rem] border border-[#57477d]/15 bg-[#ece7f4] p-2">
+          <div role="tablist" aria-label="Choose who is being rated" className="grid grid-cols-2 gap-2">
+            <button type="button" role="tab" aria-selected={subjectMode === "man"} onClick={() => changeSubjectMode("man")} className={`rounded-[1rem] px-4 py-3 text-sm font-bold ${subjectMode === "man" ? "bg-[#57477d] text-white shadow-sm" : "text-[#57477d]"}`}>Rate a man</button>
+            <button type="button" role="tab" aria-selected={subjectMode === "woman"} onClick={() => changeSubjectMode("woman")} className={`rounded-[1rem] px-4 py-3 text-sm font-bold ${subjectMode === "woman" ? "bg-[#57477d] text-white shadow-sm" : "text-[#57477d]"}`}>Rate a woman</button>
+          </div>
+          <p className="px-3 pb-2 pt-3 text-xs leading-5 text-[#625b67]">Choose who appears in the photo. The app uses your selection and does not guess gender from appearance.</p>
+        </div>
         <div className="mb-7 flex items-center justify-between"><p className="text-sm font-semibold text-[#556157]">Brutally subjective · prototype</p>{preview && <button onClick={reset} className="flex items-center gap-2 text-sm text-[#556157]"><RotateCcw size={15}/> Start over</button>}</div>
 
         {!preview && <div className="min-h-[430px] w-full rounded-[2rem] border border-dashed border-[#57477d]/40 bg-[#ece7f4] p-8 text-left sm:p-12">
@@ -219,7 +238,7 @@ export default function RateMePage() {
               <label className="mt-7 flex cursor-pointer gap-3 rounded-2xl bg-black/15 p-4 text-sm leading-5"><input type="checkbox" checked={confirmedAdult} onChange={(event) => setConfirmedAdult(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#fff8ef]"/><span>I confirm everyone shown is 18+ and has consented to blunt appearance feedback.</span></label>
               <p className="mt-4 text-xs leading-5 text-[#d8cfea]">The photo is sent to Google Gemini for this analysis and is not stored by Closet Compass. Free-tier submissions may be used by Google to improve its products.</p>
               <button disabled={!confirmedAdult || status === "analysing"} onClick={ratePhoto} className="mt-7 flex w-full items-center justify-center gap-2 rounded-full bg-[#fff8ef] px-5 py-3.5 font-semibold text-[#49396d] disabled:opacity-50">{status === "analysing" ? <><LoaderCircle className="animate-spin" size={18}/> Rating photo…</> : <><Star size={18}/> Rate this photo</>}</button>
-              {status === "error" && <div className="mt-5 rounded-2xl bg-black/15 p-4 text-sm"><p>{message}</p><button onClick={() => { setRating(demoRating); setStatus("review"); setMessage(""); }} className="mt-3 font-semibold underline underline-offset-4">Preview labelled demo rating</button></div>}
+              {status === "error" && <div className="mt-5 rounded-2xl bg-black/15 p-4 text-sm"><p>{message}</p><button onClick={() => { setRating(demoRating); setStatus("review"); setMessage(""); }} className="mt-3 font-semibold underline underline-offset-4">Preview labelled demo layout</button></div>}
             </> : <>
               <div className="flex justify-end"><span className="rounded-full bg-white/15 px-4 py-2 text-sm font-semibold">{rating.bestUse}</span></div>
               <div className="mt-5 grid grid-cols-2 gap-3">
@@ -252,17 +271,17 @@ export default function RateMePage() {
         </div>}
 
         {rating && <div className="mt-5 grid gap-5 md:grid-cols-2">
-          <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7"><h3 className="font-serif text-3xl tracking-[-0.03em]">What may work with women</h3><ul className="mt-5 space-y-3">{rating.likelyLikes.map((item) => <li key={item} className="border-l-2 border-[#2d4a3e] pl-4 text-sm leading-6">{item}</li>)}</ul></article>
-          <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7"><h3 className="font-serif text-3xl tracking-[-0.03em]">What may put some women off</h3><ul className="mt-5 space-y-3">{rating.likelyDislikes.map((item) => <li key={item} className="border-l-2 border-[#57477d] pl-4 text-sm leading-6">{item}</li>)}</ul><p className="mt-5 text-xs leading-5 text-[#667168]">Women are not a single audience. These are possible reactions to this photo, not facts about every viewer.</p></article>
+          <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7"><h3 className="font-serif text-3xl tracking-[-0.03em]">What may work with {audience}</h3><ul className="mt-5 space-y-3">{rating.likelyLikes.map((item) => <li key={item} className="border-l-2 border-[#2d4a3e] pl-4 text-sm leading-6">{item}</li>)}</ul></article>
+          <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7"><h3 className="font-serif text-3xl tracking-[-0.03em]">What may put some {audience} off</h3><ul className="mt-5 space-y-3">{rating.likelyDislikes.map((item) => <li key={item} className="border-l-2 border-[#57477d] pl-4 text-sm leading-6">{item}</li>)}</ul><p className="mt-5 text-xs leading-5 text-[#667168]">{audience === "women" ? "Women" : "Men"} are not a single audience. These are possible reactions to this photo, not facts about every viewer.</p></article>
         </div>}
 
         {rating && <section className="mt-5 rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7 sm:p-8"><p className="text-sm font-semibold text-[#57477d]">Your visual type · tentative from one photo</p><div className="mt-5 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-[#f4f0e7] p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#776b59]">Face shape</p><p className="mt-2 text-sm leading-6">{rating.appearanceProfile.faceShape}</p></div><div className="rounded-2xl bg-[#f4f0e7] p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#776b59]">Body silhouette</p><p className="mt-2 text-sm leading-6">{rating.appearanceProfile.bodySilhouette}</p></div><div className="rounded-2xl bg-[#f4f0e7] p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#776b59]">Colour direction</p><p className="mt-2 text-sm leading-6">{rating.appearanceProfile.colourDirection}</p></div><div className="rounded-2xl bg-[#f4f0e7] p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#776b59]">Hair direction</p><p className="mt-2 text-sm leading-6">{rating.appearanceProfile.hairDirection}</p></div></div><p className="mt-4 text-xs leading-5 text-[#667168]">Camera angle, loose clothing and lighting can distort face shape, silhouette and colour. Treat these as ideas to test, not fixed labels.</p></section>}
 
-        {rating && <section className="mt-5 rounded-[1.7rem] bg-[#2d4a3e] p-7 text-white sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#c8d8d0]">Specific upgrades</p><h2 className="mt-3 font-serif text-4xl tracking-[-0.04em]">What to wear—or ask your barber for.</h2><div className="mt-6 grid gap-4 sm:grid-cols-2">{rating.styleUpgrades.map((upgrade) => <article key={upgrade.category} className="rounded-2xl bg-white/10 p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#c8d8d0]">{upgrade.category}</p><h3 className="mt-2 font-semibold leading-6">{upgrade.recommendation}</h3><p className="mt-3 text-sm leading-6 text-[#e4ece7]">{upgrade.why}</p><p className="mt-3 text-xs text-[#c8d8d0]">Search: {upgrade.query}</p><div className="mt-4 flex flex-wrap gap-2"><a href={googleImagesUrl(upgrade.query)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-2 text-xs font-semibold text-[#2d4a3e]">See examples <ExternalLink size={12}/></a>{upgrade.category !== "Haircut" && <a href={googleShoppingUrl(upgrade.query)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-white/30 px-3 py-2 text-xs font-semibold">Shop options <ExternalLink size={12}/></a>}</div></article>)}</div><p className="mt-5 text-xs leading-5 text-[#c8d8d0]">Opening a link shares only the displayed search words with Google, never your uploaded photo.</p></section>}
+        {rating && <section className="mt-5 rounded-[1.7rem] bg-[#2d4a3e] p-7 text-white sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#c8d8d0]">Specific upgrades</p><h2 className="mt-3 font-serif text-4xl tracking-[-0.04em]">What to wear—or ask your stylist for.</h2><div className="mt-6 grid gap-4 sm:grid-cols-2">{rating.styleUpgrades.map((upgrade) => <article key={upgrade.category} className="rounded-2xl bg-white/10 p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#c8d8d0]">{upgrade.category}</p><h3 className="mt-2 font-semibold leading-6">{upgrade.recommendation}</h3><p className="mt-3 text-sm leading-6 text-[#e4ece7]">{upgrade.why}</p><p className="mt-3 text-xs text-[#c8d8d0]">Search: {upgrade.query}</p><div className="mt-4 flex flex-wrap gap-2"><a href={googleImagesUrl(upgrade.query)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-2 text-xs font-semibold text-[#2d4a3e]">See examples <ExternalLink size={12}/></a>{upgrade.category !== "Haircut" && <a href={googleShoppingUrl(upgrade.query)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-white/30 px-3 py-2 text-xs font-semibold">Shop options <ExternalLink size={12}/></a>}</div></article>)}</div><p className="mt-5 text-xs leading-5 text-[#c8d8d0]">Opening a link shares only the displayed search words with Google, never your uploaded photo.</p></section>}
 
         {rating && <section className="mt-5 rounded-[1.7rem] bg-[#d9c7a8] p-7 sm:p-8"><p className="flex items-center gap-2 text-sm font-semibold"><Search size={17}/> Reference pictures to study</p><h2 className="mt-3 max-w-2xl font-serif text-4xl tracking-[-0.04em]">Borrow the setup, not somebody else’s face.</h2><p className="mt-3 max-w-3xl text-sm leading-6 text-[#4e493f]">These searches use generic visible descriptors. Your uploaded photo is not sent to Google Images or Unsplash; only the search words are shared after you open a link.</p><div className="mt-6 grid gap-4 lg:grid-cols-3">{rating.referenceSearches.map((search) => <article key={search.title} className="rounded-2xl bg-[#fbf9f3] p-5"><h3 className="font-semibold">{search.title}</h3><p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#776b59]">{search.query}</p><p className="mt-3 text-sm leading-6 text-[#625b50]">{search.why}</p><div className="mt-5 flex flex-wrap gap-2"><a href={googleImagesUrl(search.query)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-full bg-[#20251f] px-3 py-2 text-xs font-semibold text-white">Google Images <ExternalLink size={12}/></a><a href={unsplashUrl(search.query)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-[#20251f]/20 px-3 py-2 text-xs font-semibold">Unsplash <ExternalLink size={12}/></a></div></article>)}</div></section>}
 
-        <aside className="mt-8 rounded-[1.7rem] border border-[#20251f]/10 bg-[#f4f0e7] p-6 sm:p-8"><p className="flex items-center gap-2 font-semibold"><ShieldCheck size={18}/> Blunt, not scientific</p><p className="mt-3 max-w-3xl text-sm leading-6 text-[#667168]">The face and body scores are one model’s subjective read of one consenting adult’s photo. They are not measurements of worth and cannot represent what all women—or any group—find attractive. Public dating-app guidance supports the photo-quality part: clear face, good light, recent solo image, minimal filtering. The only real performance test is rotating photos with actual opt-in match data.</p><div className="mt-4 flex flex-wrap gap-3 text-sm font-semibold"><a className="underline underline-offset-4" href="https://support.bumble.com/hc/articles/28523708029341-Uploading-profile-photos" target="_blank" rel="noreferrer">Bumble guidance</a><a className="underline underline-offset-4" href="https://au.tinderpressroom.com/introducing-smart-photos-for-the-most-swipeworthy-you" target="_blank" rel="noreferrer">Tinder Smart Photos</a></div></aside>
+        <aside className="mt-8 rounded-[1.7rem] border border-[#20251f]/10 bg-[#f4f0e7] p-6 sm:p-8"><p className="flex items-center gap-2 font-semibold"><ShieldCheck size={18}/> Blunt, not scientific</p><p className="mt-3 max-w-3xl text-sm leading-6 text-[#667168]">The face and body scores are one model’s subjective read of one consenting adult’s photo. They are not measurements of worth and cannot represent what all {audience}—or any group—find attractive. Public dating-app guidance supports the photo-quality part: clear face, good light, recent solo image, minimal filtering. The only real performance test is rotating photos with actual opt-in match data.</p><div className="mt-4 flex flex-wrap gap-3 text-sm font-semibold"><a className="underline underline-offset-4" href="https://support.bumble.com/hc/articles/28523708029341-Uploading-profile-photos" target="_blank" rel="noreferrer">Bumble guidance</a><a className="underline underline-offset-4" href="https://au.tinderpressroom.com/introducing-smart-photos-for-the-most-swipeworthy-you" target="_blank" rel="noreferrer">Tinder Smart Photos</a></div></aside>
         <input ref={libraryInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={choosePhoto} className="sr-only"/>
         <input ref={cameraInputRef} type="file" accept="image/*" capture="user" onChange={choosePhoto} className="sr-only"/>
       </div>

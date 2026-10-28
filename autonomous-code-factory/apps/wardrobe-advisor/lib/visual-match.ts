@@ -13,6 +13,9 @@ export const visualMatchOptions = {
   placement: ["right", "left"],
 } as const;
 
+export const visualMatchSubjectModes = ["man", "woman"] as const;
+export type VisualMatchSubjectMode = (typeof visualMatchSubjectModes)[number];
+
 export type VisualMatchSelections = {
   [Key in keyof typeof visualMatchOptions]: (typeof visualMatchOptions)[Key][number];
 };
@@ -68,29 +71,35 @@ function selectionInstruction(key: keyof VisualMatchSelections, value: string) {
   return `${labels[key]}: ${words(value)}`;
 }
 
-export function buildVisualMatchPrompt(selections: VisualMatchSelections, profile: VisualMatchProfile) {
+export function buildVisualMatchPrompt(selections: VisualMatchSelections, profile: VisualMatchProfile, subjectMode: VisualMatchSubjectMode) {
+  const partnerGender = subjectMode === "man" ? "woman" : "man";
+  const partnerObject = partnerGender === "woman" ? "her" : "him";
+  const partnerPossessive = partnerGender === "woman" ? "her" : "his";
+  const idealisedDefaults = partnerGender === "woman"
+    ? "enlarged eyes, a sculpted jaw, glossy salon-styled hair, perfect bright teeth, heavy beauty makeup, an hourglass fashion silhouette or a polished promotional smile"
+    : "a sculpted jaw, glossy salon-styled hair, perfect bright teeth, a broad muscular fashion silhouette, exaggerated height or a polished promotional smile";
   const chosen = (Object.entries(selections) as [keyof VisualMatchSelections, string][])
     .map(([key, value]) => selectionInstruction(key, value))
     .filter(Boolean)
     .join("; ");
 
-  return `Edit only the transparent area in the supplied mask. Add exactly one fictional adult woman ${selections.placement === "right" ? "on the right side of the frame" : "on the left side of the frame"} so the result looks like an ordinary, candid photograph of two real adults together—not a dating advertisement, fashion shoot, travel campaign or idealised stock photo.
+  return `Edit only the transparent area in the supplied mask. The source adult is a ${subjectMode}, as explicitly selected by the user; do not infer or alter that identity. Add exactly one fictional adult ${partnerGender} ${selections.placement === "right" ? "on the right side of the frame" : "on the left side of the frame"} so the result looks like an ordinary, candid photograph of two real adults together—not a dating advertisement, fashion shoot, travel campaign or idealised stock photo.
 
-${visualMatchProfilePrompt(profile)}
+${visualMatchProfilePrompt(profile, partnerGender)}
 
-ABSOLUTE PRESERVATION RULE: do not modify anything in the opaque, protected part of the mask. Keep the original person exactly recognizable and unchanged: same face, expression, eyes, nose, mouth, jaw, skin texture, hair, body shape, pose, hands, clothes and accessories. This preservation rule also applies if any part of the original person accidentally extends into the transparent edit area. Never erase, crop, cover, replace, obscure or leave headless either person. Both people must have one complete, naturally connected head and face. Keep the protected environment unchanged: same background, objects, framing, crop, camera angle, perspective, lighting, shadows, colour grade, sharpness and resolution. Do not beautify, redraw, retouch, reshape, relight, move, age, de-age, replace or restyle the original person. If preservation conflicts with a requested pose or there is limited space, preserve the source person and make the added partner smaller or simplify her pose instead.
+ABSOLUTE PRESERVATION RULE: do not modify anything in the opaque, protected part of the mask. Keep the original person exactly recognizable and unchanged: same face, expression, eyes, nose, mouth, jaw, skin texture, hair, body shape, pose, hands, clothes and accessories. This preservation rule also applies if any part of the original person accidentally extends into the transparent edit area. Never erase, crop, cover, replace, obscure or leave headless either person. Both people must have one complete, naturally connected head and face. Keep the protected environment unchanged: same background, objects, framing, crop, camera angle, perspective, lighting, shadows, colour grade, sharpness and resolution. Do not beautify, redraw, retouch, reshape, relight, move, age, de-age, replace or restyle the original person. If preservation conflicts with a requested pose or there is limited space, preserve the source person and make the added partner smaller or simplify the partner's pose instead.
 
-The added woman must clearly be at least 21 years old. Place her fully inside the editable area, matching the existing camera perspective, lighting, shadows, focus, grain and colour. Compose them as a close couple, not two separate subjects: anchor her at the inner edge of the editable area nearest the original person, with their shoulders or upper arms visually adjacent and only a very narrow natural gap (roughly 1–3% of the frame width). Do not centre her in the empty half or push her toward the outer edge. She may lean toward the original person and appear almost shoulder-to-shoulder, but must not cover or alter any protected source pixels. Interpret any requested interactive pose as a visual mood when literal contact would require changing protected pixels.
+The added ${partnerGender} must clearly be at least 21 years old. Place ${partnerObject} fully inside the editable area, matching the existing camera perspective, lighting, shadows, focus, grain and colour. Compose them as a close couple, not two separate subjects: anchor ${partnerObject} at the inner edge of the editable area nearest the original person, with their shoulders or upper arms visually adjacent and only a very narrow natural gap (roughly 1–3% of the frame width). Do not centre ${partnerObject} in the empty half or push ${partnerObject} toward the outer edge. The partner may lean toward the original person and appear almost shoulder-to-shoulder, but must not cover or alter any protected source pixels. Interpret any requested interactive pose as a visual mood when literal contact would require changing protected pixels.
 
 COUPLE MATCHING IS THE HIGHEST-PRIORITY GENERATION REQUIREMENT. The two people must look like believable visual peers with comparable apparent physical attractiveness and comparable presentation. First assess only what is visibly presented in the source photograph: apparent adult age, facial attractiveness, physique, grooming, styling, expression, confidence, photographic polish and overall visual presence. Then create a partner in the same narrow attractiveness and presentation band. Do not improve, restyle or beautify the source person to make the pairing seem more balanced.
 
-Do not generate a fashion model, influencer, beauty-ad face or conspicuously camera-ready woman. Avoid the common generative default of flawless skin, highly symmetrical features, enlarged eyes, a sculpted jaw, glossy salon-styled hair, perfect bright teeth, heavy beauty makeup, an hourglass fashion silhouette or a polished promotional smile unless the source person visibly presents at that same level. Use normal skin texture, small natural asymmetries, ordinary believable proportions, restrained or no-visible makeup, everyday hair and realistic clothing. Match the source person's degree of grooming, wardrobe effort, facial expression and camera readiness. If the source is casual, neutrally expressive or plainly styled, the partner must be comparably casual, neutrally expressive and plainly styled. When uncertain, choose a more ordinary and less polished presentation rather than an aspirational one.
+Do not generate a fashion model, influencer, beauty-ad face or conspicuously camera-ready ${partnerGender}. Avoid the common generative default of flawless skin, highly symmetrical features, ${idealisedDefaults} unless the source person visibly presents at that same level. Use normal skin texture, small natural asymmetries, ordinary believable proportions, everyday hair and realistic clothing. Match the source person's degree of grooming, wardrobe effort, facial expression and camera readiness. If the source is casual, neutrally expressive or plainly styled, the partner must be comparably casual, neutrally expressive and plainly styled. When uncertain, choose a more ordinary and less polished presentation rather than an aspirational one.
 
 Match the couple aesthetically through coherent age, styling, colour palette, body language and social energy—not by copying facial features, matching ethnicity, or inferring personality, status or real compatibility. User-selected attributes are secondary constraints and must never push the partner into a higher presentation or attractiveness tier. A selected setting describes the partner's clothing context only; it never authorises replacing, upgrading or relocating the original background. Do not display or write an attractiveness score anywhere in the image.
 
 ${chosen ? `Use these selected attributes for the fictional partner: ${chosen}.` : "Choose visually coherent adult features, clothing and energy for the added partner. Do not imply psychological, biological or racial compatibility."}
 
-Output the complete edited photograph, with exactly the original person plus one added fictional adult woman. Avoid duplicate people, extra limbs, text, logos and watermarks.`;
+Output the complete edited photograph, with exactly the original person plus one added fictional adult ${partnerGender}. Keep the generated partner's full head, face and body anatomically connected, including ${partnerPossessive} limbs. Avoid duplicate people, extra limbs, text, logos and watermarks.`;
 }
 
 async function generateWithOpenAI(
@@ -100,6 +109,7 @@ async function generateWithOpenAI(
   outputSize: string,
   selections: VisualMatchSelections,
   profile: VisualMatchProfile,
+  subjectMode: VisualMatchSubjectMode,
 ): Promise<GeneratedVisualMatch> {
   const provider = "openai" as const;
   const model = process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-2.5-sunburst";
@@ -115,7 +125,7 @@ async function generateWithOpenAI(
   const extension = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
   const form = new FormData();
   form.append("model", model);
-  form.append("prompt", buildVisualMatchPrompt(selections, profile));
+  form.append("prompt", buildVisualMatchPrompt(selections, profile, subjectMode));
   form.append("image", new Blob([imageBytes], { type: mimeType }), `portrait.${extension}`);
   form.append("mask", new Blob([maskBytes], { type: "image/png" }), "edit-mask.png");
   form.append("quality", process.env.OPENAI_IMAGE_QUALITY ?? "high");
@@ -218,6 +228,7 @@ async function generateWithGemini(
   mimeType: string,
   selections: VisualMatchSelections,
   profile: VisualMatchProfile,
+  subjectMode: VisualMatchSubjectMode,
 ): Promise<GeneratedVisualMatch> {
   const provider = "gemini" as const;
   const model = process.env.GEMINI_IMAGE_MODEL;
@@ -248,7 +259,7 @@ async function generateWithGemini(
       body: JSON.stringify({
         model,
         input: [
-          { type: "text", text: buildVisualMatchPrompt(selections, profile) },
+          { type: "text", text: buildVisualMatchPrompt(selections, profile, subjectMode) },
           { type: "image", data: imageBase64, mime_type: mimeType },
         ],
         response_format: {
@@ -315,6 +326,7 @@ async function generateWithCloudflare(
   mimeType: string,
   selections: VisualMatchSelections,
   profile: VisualMatchProfile,
+  subjectMode: VisualMatchSubjectMode,
 ): Promise<GeneratedVisualMatch> {
   const provider = "cloudflare" as const;
   const model = process.env.CLOUDFLARE_IMAGE_MODEL ?? "@cf/black-forest-labs/flux-2-klein-4b";
@@ -329,7 +341,7 @@ async function generateWithCloudflare(
 
   const imageBytes = Uint8Array.from(Buffer.from(imageBase64, "base64"));
   const form = new FormData();
-  form.append("prompt", buildVisualMatchPrompt(selections, profile));
+  form.append("prompt", buildVisualMatchPrompt(selections, profile, subjectMode));
   form.append("input_image_0", new Blob([imageBytes], { type: mimeType }), "portrait.jpg");
   form.append("width", "1024");
   form.append("height", "1280");
@@ -406,9 +418,10 @@ export function generateVisualMatch(
   outputSize: string,
   selections: VisualMatchSelections,
   profile: VisualMatchProfile,
+  subjectMode: VisualMatchSubjectMode,
 ) {
   const provider = selectedVisualMatchProvider();
-  if (provider === "gemini") return generateWithGemini(imageBase64, mimeType, selections, profile);
-  if (provider === "cloudflare") return generateWithCloudflare(imageBase64, mimeType, selections, profile);
-  return generateWithOpenAI(imageBase64, mimeType, maskBase64, outputSize, selections, profile);
+  if (provider === "gemini") return generateWithGemini(imageBase64, mimeType, selections, profile, subjectMode);
+  if (provider === "cloudflare") return generateWithCloudflare(imageBase64, mimeType, selections, profile, subjectMode);
+  return generateWithOpenAI(imageBase64, mimeType, maskBase64, outputSize, selections, profile, subjectMode);
 }

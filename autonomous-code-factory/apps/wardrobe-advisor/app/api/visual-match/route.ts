@@ -5,6 +5,8 @@ import {
   type VisualMatchSelections,
   VisualMatchProviderError,
   visualMatchOptions,
+  visualMatchSubjectModes,
+  type VisualMatchSubjectMode,
 } from "@/lib/visual-match";
 import { analyseVisualMatchProfile, parseVisualMatchProfile } from "@/lib/visual-match-profile";
 import { selectedVisionProvider, VisionProviderError } from "@/lib/vision-analysis";
@@ -32,11 +34,15 @@ export async function POST(request: Request) {
   const form = await request.formData();
   const image = form.get("image");
   const mask = form.get("mask");
+  const subjectMode = form.get("subjectMode");
   if (form.get("adultConfirmed") !== "true") {
     return errorResponse("Confirm that everyone in the uploaded photo is an adult and has consented.", 400, requestId);
   }
   if (!(image instanceof File) || !supportedImageTypes.has(image.type)) {
     return errorResponse("Please upload a JPEG, PNG or WebP image.", 400, requestId);
+  }
+  if (typeof subjectMode !== "string" || !visualMatchSubjectModes.includes(subjectMode as VisualMatchSubjectMode)) {
+    return errorResponse("Choose whether the source photo shows a man or a woman.", 400, requestId);
   }
   if (image.size > 10 * 1024 * 1024) {
     return errorResponse("Please choose an image under 10 MB.", 413, requestId);
@@ -65,7 +71,7 @@ export async function POST(request: Request) {
     if (!profileResult.outputText) return errorResponse("The source-photo calibration returned no result. Please retry.", 502, requestId);
     const profile = parseVisualMatchProfile(profileResult.outputText);
     if (!profile) return errorResponse("The source-photo calibration was incomplete. Please retry.", 502, requestId);
-    const result = await generateVisualMatch(imageBase64, image.type, maskBase64, outputSize, selections, profile);
+    const result = await generateVisualMatch(imageBase64, image.type, maskBase64, outputSize, selections, profile, subjectMode as VisualMatchSubjectMode);
     return NextResponse.json(
       { imageBase64: result.imageBase64, mimeType: result.mimeType },
       { headers: { "X-Request-ID": requestId, "Cache-Control": "no-store" } },
