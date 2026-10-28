@@ -1,6 +1,6 @@
 import { analyseStructuredImage } from "@/lib/vision-analysis";
 
-export const datingSubjectModes = ["man", "woman"] as const;
+export const datingSubjectModes = ["ai", "man", "woman"] as const;
 export type DatingSubjectMode = (typeof datingSubjectModes)[number];
 
 export type RatingDimension = {
@@ -182,8 +182,11 @@ const ratingSchema = {
 } as const;
 
 function ratingPrompt(subjectMode: DatingSubjectMode) {
-  const audience = subjectMode === "man" ? "adult women" : "adult men";
-  return `Act like the user's extroverted, brutally honest friend reviewing an adult dating-profile photo. The user explicitly selected that the primary adult in the photo is a ${subjectMode}; use that selection as context and do not try to infer, verify or contradict gender from appearance. The user confirms that every person shown is at least 18 and consented to appearance feedback. Return JSON matching the schema. Score exactly five dimensions in this exact order: Face, Body & presence, Style, Photo quality, Dating appeal.
+  const audience = subjectMode === "man" ? "adult women" : subjectMode === "woman" ? "adult men" : "adult daters";
+  const subjectContext = subjectMode === "ai"
+    ? "The user selected the neutral AI mode. Do not infer or state the primary adult's gender or sexual orientation from appearance; assess the visible presentation and use a general adult-dater audience lens."
+    : `The user explicitly selected that the primary adult in the photo is a ${subjectMode}; use that selection as context and do not try to verify or contradict it from appearance.`;
+  return `Act like the user's extroverted, brutally honest friend reviewing an adult dating-profile photo. ${subjectContext} The user confirms that every person shown is at least 18 and consented to appearance feedback. Return JSON matching the schema. Score exactly five dimensions in this exact order: Face, Body & presence, Style, Photo quality, Dating appeal.
 
 Be unsparing, specific, colloquial and useful. Lead the verdict with the most important truth. Do not use a compliment sandwich, corporate coaching language, fake positivity or inflated scores. A 5 is ordinary, 7 is genuinely strong, 9 is exceptional, and 10 should almost never be used. Be equally truthful about what works: identify two or three genuine visible strengths and explain why each helps. Do not invent praise, but do not hide or downgrade a real strength merely to sound harsh. Comment directly on visible facial appeal in this image, including expression, grooming, hair, eye contact, skin presentation, angle and how the features are presented. Comment directly on visible body presentation, posture, silhouette, outfit fit and physical presence. This is a subjective rating of how the adult appears in one photograph, not a statement of human worth.
 

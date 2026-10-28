@@ -73,7 +73,7 @@ export function parseVisualMatchProfile(outputText: string): VisualMatchProfile 
   return profile as VisualMatchProfile;
 }
 
-export function visualMatchProfilePrompt(profile: VisualMatchProfile, partnerGender: "man" | "woman") {
+export function visualMatchProfilePrompt(profile: VisualMatchProfile, partnerGender: "man" | "woman" | "man or woman") {
   const compensatedTarget = Math.max(1, profile.physicalAttractivenessScore - 1);
   return `INDEPENDENT SOURCE CALIBRATION — treat this as a hard constraint, not a suggestion:
 - source visible physical-attractiveness score: ${profile.physicalAttractivenessScore}/9

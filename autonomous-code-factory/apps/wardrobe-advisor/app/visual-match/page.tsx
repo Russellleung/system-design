@@ -119,7 +119,7 @@ export default function VisualMatchPage() {
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [cropPreview, setCropPreview] = useState<string | null>(null);
   const [selections, setSelections] = useState<VisualMatchSelections>(aiSelections);
-  const [subjectMode, setSubjectMode] = useState<VisualMatchSubjectMode>("man");
+  const [subjectMode, setSubjectMode] = useState<VisualMatchSubjectMode>("ai");
   const [tuning, setTuning] = useState(false);
   const [confirmedAdult, setConfirmedAdult] = useState(false);
   const [confirmedClearZone, setConfirmedClearZone] = useState(false);
@@ -259,7 +259,7 @@ export default function VisualMatchPage() {
     setFile(null); setPreview(null); setResult(null); setAnalysis(null); setAnalysisStatus("idle"); setAnalysisMessage(""); setConfirmedAdult(false); setConfirmedClearZone(false); setStatus("idle"); setMessage("");
   }
 
-  const partnerLabel = subjectMode === "man" ? "woman" : "man";
+  const partnerLabel = subjectMode === "man" ? "woman" : subjectMode === "woman" ? "man" : "man or woman";
 
   return <main className="min-h-screen bg-[#fbf8f2] text-[#20251f]">
     <AppNav active="visual-match" />
@@ -298,13 +298,14 @@ export default function VisualMatchPage() {
         <div className="min-w-0 rounded-[2rem] bg-[#fffdf9] p-6 shadow-sm ring-1 ring-black/5 sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.17em] text-[#9f3d61]">Creative direction</p><h2 className="mt-2 font-serif text-4xl tracking-[-0.035em]">Who stands beside you?</h2></div>{tuning && <button onClick={useAiChoices} className="flex items-center gap-2 rounded-full border border-[#20251f]/15 px-4 py-2 text-sm font-semibold"><Sparkles size={15}/> Reset to AI</button>}</div>
           <div className="mt-6 rounded-2xl border border-[#9f3d61]/15 bg-[#fbf4f6] p-1">
-            <div role="tablist" aria-label="Choose who appears in the source photo" className="grid grid-cols-2 gap-1">
+            <div role="tablist" aria-label="Choose a source mode or let AI choose the partner" className="grid grid-cols-3 gap-1">
+              <button type="button" role="tab" aria-selected={subjectMode === "ai"} onClick={() => changeSubjectMode("ai")} className={`rounded-xl px-2 py-3 text-sm font-bold ${subjectMode === "ai" ? "bg-[#9f3d61] text-white" : "text-[#754257]"}`}>AI chooses</button>
               <button type="button" role="tab" aria-selected={subjectMode === "man"} onClick={() => changeSubjectMode("man")} className={`rounded-xl px-3 py-3 text-sm font-bold ${subjectMode === "man" ? "bg-[#9f3d61] text-white" : "text-[#754257]"}`}>Photo: man</button>
               <button type="button" role="tab" aria-selected={subjectMode === "woman"} onClick={() => changeSubjectMode("woman")} className={`rounded-xl px-3 py-3 text-sm font-bold ${subjectMode === "woman" ? "bg-[#9f3d61] text-white" : "text-[#754257]"}`}>Photo: woman</button>
             </div>
-            <p className="px-3 pb-2 pt-3 text-xs leading-5 text-[#6a5960]">A fictional adult {partnerLabel} will be added. The app follows your selection and does not guess gender from appearance.</p>
+            <p className="px-3 pb-2 pt-3 text-xs leading-5 text-[#6a5960]">A fictional adult {partnerLabel} will be added. AI chooses selects a visually coherent partner without claiming to infer your identity, orientation or real compatibility.</p>
           </div>
-          <div className="mt-6 grid grid-cols-2 rounded-2xl bg-[#f3e6eb] p-1"><button onClick={useAiChoices} className={`rounded-xl px-4 py-3 text-sm font-bold ${!tuning ? "bg-[#9f3d61] text-white" : "text-[#754257]"}`}>AI chooses</button><button onClick={() => setTuning(true)} className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold ${tuning ? "bg-[#9f3d61] text-white" : "text-[#754257]"}`}><SlidersHorizontal size={15}/> Tune it</button></div>
+          <div className="mt-6 grid grid-cols-2 rounded-2xl bg-[#f3e6eb] p-1"><button onClick={useAiChoices} className={`rounded-xl px-4 py-3 text-sm font-bold ${!tuning ? "bg-[#9f3d61] text-white" : "text-[#754257]"}`}>AI directs style</button><button onClick={() => setTuning(true)} className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold ${tuning ? "bg-[#9f3d61] text-white" : "text-[#754257]"}`}><SlidersHorizontal size={15}/> Tune it</button></div>
 
           {!tuning ? <div className="mt-6 rounded-2xl border border-[#9f3d61]/15 bg-[#fbf4f6] p-5 text-sm leading-6 text-[#6a5960]">OpenAI will add a fictional adult {partnerLabel} inside the marked edit area. It is directed to create a believable visual peer with comparable attractiveness, age, grooming and photographic polish—not a generic fashion model. Keep your entire head and body outside the pink area so Sunburst can preserve you through its edit mask. It will not match ethnicity or claim real compatibility.</div> : <div className="mt-6 grid gap-5 sm:grid-cols-2">{attributeGroups.map((group) => <label key={group.key} className="text-sm font-semibold">{group.label}<select value={selections[group.key]} onChange={(event) => setChoice(group.key, event.target.value)} className="mt-2 w-full rounded-xl border border-[#20251f]/15 bg-white px-3 py-3 font-normal outline-none focus:border-[#9f3d61]">{group.choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</select></label>)}</div>}
 

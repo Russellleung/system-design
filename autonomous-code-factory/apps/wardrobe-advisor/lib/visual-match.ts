@@ -13,7 +13,7 @@ export const visualMatchOptions = {
   placement: ["right", "left"],
 } as const;
 
-export const visualMatchSubjectModes = ["man", "woman"] as const;
+export const visualMatchSubjectModes = ["ai", "man", "woman"] as const;
 export type VisualMatchSubjectMode = (typeof visualMatchSubjectModes)[number];
 
 export type VisualMatchSelections = {
@@ -72,18 +72,23 @@ function selectionInstruction(key: keyof VisualMatchSelections, value: string) {
 }
 
 export function buildVisualMatchPrompt(selections: VisualMatchSelections, profile: VisualMatchProfile, subjectMode: VisualMatchSubjectMode) {
-  const partnerGender = subjectMode === "man" ? "woman" : "man";
-  const partnerObject = partnerGender === "woman" ? "her" : "him";
-  const partnerPossessive = partnerGender === "woman" ? "her" : "his";
+  const partnerGender = subjectMode === "man" ? "woman" : subjectMode === "woman" ? "man" : "man or woman";
+  const partnerObject = subjectMode === "ai" ? "them" : partnerGender === "woman" ? "her" : "him";
+  const partnerPossessive = subjectMode === "ai" ? "their" : partnerGender === "woman" ? "her" : "his";
   const idealisedDefaults = partnerGender === "woman"
     ? "enlarged eyes, a sculpted jaw, glossy salon-styled hair, perfect bright teeth, heavy beauty makeup, an hourglass fashion silhouette or a polished promotional smile"
-    : "a sculpted jaw, glossy salon-styled hair, perfect bright teeth, a broad muscular fashion silhouette, exaggerated height or a polished promotional smile";
+    : partnerGender === "man"
+      ? "a sculpted jaw, glossy salon-styled hair, perfect bright teeth, a broad muscular fashion silhouette, exaggerated height or a polished promotional smile"
+      : "enlarged eyes, a sculpted jaw, glossy salon-styled hair, perfect bright teeth, heavy beauty makeup, an exaggerated fashion silhouette, exaggerated muscularity or height, or a polished promotional smile";
+  const subjectContext = subjectMode === "ai"
+    ? "The user selected AI choice. First choose exactly one partner gender—adult man or adult woman—based only on what produces the most visually coherent, believable composition, then add one person of that chosen gender. Never add both. Do not claim that this choice reveals the source person's gender identity, sexual orientation, preferences or real compatibility."
+    : `The source adult is a ${subjectMode}, as explicitly selected by the user; do not infer or alter that identity.`;
   const chosen = (Object.entries(selections) as [keyof VisualMatchSelections, string][])
     .map(([key, value]) => selectionInstruction(key, value))
     .filter(Boolean)
     .join("; ");
 
-  return `Edit only the transparent area in the supplied mask. The source adult is a ${subjectMode}, as explicitly selected by the user; do not infer or alter that identity. Add exactly one fictional adult ${partnerGender} ${selections.placement === "right" ? "on the right side of the frame" : "on the left side of the frame"} so the result looks like an ordinary, candid photograph of two real adults together—not a dating advertisement, fashion shoot, travel campaign or idealised stock photo.
+  return `Edit only the transparent area in the supplied mask. ${subjectContext} Add exactly one fictional adult ${partnerGender} ${selections.placement === "right" ? "on the right side of the frame" : "on the left side of the frame"} so the result looks like an ordinary, candid photograph of two real adults together—not a dating advertisement, fashion shoot, travel campaign or idealised stock photo.
 
 ${visualMatchProfilePrompt(profile, partnerGender)}
 

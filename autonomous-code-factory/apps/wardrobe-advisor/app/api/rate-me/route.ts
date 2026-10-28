@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     return errorResponse("Please upload a JPEG, PNG, WebP or non-animated GIF image.", 400, requestId);
   }
   if (typeof subjectMode !== "string" || !datingSubjectModes.includes(subjectMode as DatingSubjectMode)) {
-    return errorResponse("Choose whether the photo is being reviewed for a man or a woman.", 400, requestId);
+    return errorResponse("Choose AI decides, Rate a man or Rate a woman.", 400, requestId);
   }
   if (image.size > 10 * 1024 * 1024) return errorResponse("Please choose an image under 10 MB.", 413, requestId);
 

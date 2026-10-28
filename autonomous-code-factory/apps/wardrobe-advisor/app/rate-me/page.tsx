@@ -95,10 +95,18 @@ const demoRating: DatingPhotoRating = {
   confidenceNote: "Demo result. The score is one blunt subjective opinion about one image—not a scientific measure or a guarantee of matches.",
 };
 
+function demoRatingFor(subjectMode: DatingSubjectMode): DatingPhotoRating {
+  const audience = subjectMode === "man" ? "Some women" : subjectMode === "woman" ? "Some men" : "Some adult daters";
+  return {
+    ...demoRating,
+    likelyLikes: [`${audience} may like that the smile feels natural rather than rehearsed`, demoRating.likelyLikes[1] ?? "The clean, unfussy outfit reads as approachable"],
+  };
+}
+
 export default function RateMePage() {
   const libraryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const [subjectMode, setSubjectMode] = useState<DatingSubjectMode>("man");
+  const [subjectMode, setSubjectMode] = useState<DatingSubjectMode>("ai");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [cropSourceFile, setCropSourceFile] = useState<File | null>(null);
@@ -194,7 +202,8 @@ export default function RateMePage() {
     return `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(query)}`;
   }
 
-  const audience = subjectMode === "man" ? "women" : "men";
+  const audience = subjectMode === "man" ? "women" : subjectMode === "woman" ? "men" : "adult daters";
+  const audienceSentenceStart = audience === "women" ? "Women" : audience === "men" ? "Men" : "Adult daters";
 
   return <main className="min-h-screen bg-[#f4f0e7] text-[#20251f]">
     <AppNav active="rate-me" />
@@ -209,11 +218,12 @@ export default function RateMePage() {
     <section className="border-y border-[#20251f]/10 bg-[#fbf9f3]">
       <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
         <div className="mb-7 rounded-[1.5rem] border border-[#57477d]/15 bg-[#ece7f4] p-2">
-          <div role="tablist" aria-label="Choose who is being rated" className="grid grid-cols-2 gap-2">
+          <div role="tablist" aria-label="Choose who is being rated" className="grid grid-cols-3 gap-2">
+            <button type="button" role="tab" aria-selected={subjectMode === "ai"} onClick={() => changeSubjectMode("ai")} className={`rounded-[1rem] px-3 py-3 text-sm font-bold ${subjectMode === "ai" ? "bg-[#57477d] text-white shadow-sm" : "text-[#57477d]"}`}>AI decides</button>
             <button type="button" role="tab" aria-selected={subjectMode === "man"} onClick={() => changeSubjectMode("man")} className={`rounded-[1rem] px-4 py-3 text-sm font-bold ${subjectMode === "man" ? "bg-[#57477d] text-white shadow-sm" : "text-[#57477d]"}`}>Rate a man</button>
             <button type="button" role="tab" aria-selected={subjectMode === "woman"} onClick={() => changeSubjectMode("woman")} className={`rounded-[1rem] px-4 py-3 text-sm font-bold ${subjectMode === "woman" ? "bg-[#57477d] text-white shadow-sm" : "text-[#57477d]"}`}>Rate a woman</button>
           </div>
-          <p className="px-3 pb-2 pt-3 text-xs leading-5 text-[#625b67]">Choose who appears in the photo. The app uses your selection and does not guess gender from appearance.</p>
+          <p className="px-3 pb-2 pt-3 text-xs leading-5 text-[#625b67]">AI decides uses a general adult-dater lens without assigning a gender. Choose a specific mode when you want feedback framed around women or men.</p>
         </div>
         <div className="mb-7 flex items-center justify-between"><p className="text-sm font-semibold text-[#556157]">Brutally subjective · prototype</p>{preview && <button onClick={reset} className="flex items-center gap-2 text-sm text-[#556157]"><RotateCcw size={15}/> Start over</button>}</div>
 
@@ -238,7 +248,7 @@ export default function RateMePage() {
               <label className="mt-7 flex cursor-pointer gap-3 rounded-2xl bg-black/15 p-4 text-sm leading-5"><input type="checkbox" checked={confirmedAdult} onChange={(event) => setConfirmedAdult(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#fff8ef]"/><span>I confirm everyone shown is 18+ and has consented to blunt appearance feedback.</span></label>
               <p className="mt-4 text-xs leading-5 text-[#d8cfea]">The photo is sent to Google Gemini for this analysis and is not stored by Closet Compass. Free-tier submissions may be used by Google to improve its products.</p>
               <button disabled={!confirmedAdult || status === "analysing"} onClick={ratePhoto} className="mt-7 flex w-full items-center justify-center gap-2 rounded-full bg-[#fff8ef] px-5 py-3.5 font-semibold text-[#49396d] disabled:opacity-50">{status === "analysing" ? <><LoaderCircle className="animate-spin" size={18}/> Rating photo…</> : <><Star size={18}/> Rate this photo</>}</button>
-              {status === "error" && <div className="mt-5 rounded-2xl bg-black/15 p-4 text-sm"><p>{message}</p><button onClick={() => { setRating(demoRating); setStatus("review"); setMessage(""); }} className="mt-3 font-semibold underline underline-offset-4">Preview labelled demo layout</button></div>}
+              {status === "error" && <div className="mt-5 rounded-2xl bg-black/15 p-4 text-sm"><p>{message}</p><button onClick={() => { setRating(demoRatingFor(subjectMode)); setStatus("review"); setMessage(""); }} className="mt-3 font-semibold underline underline-offset-4">Preview labelled demo layout</button></div>}
             </> : <>
               <div className="flex justify-end"><span className="rounded-full bg-white/15 px-4 py-2 text-sm font-semibold">{rating.bestUse}</span></div>
               <div className="mt-5 grid grid-cols-2 gap-3">
@@ -272,7 +282,7 @@ export default function RateMePage() {
 
         {rating && <div className="mt-5 grid gap-5 md:grid-cols-2">
           <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7"><h3 className="font-serif text-3xl tracking-[-0.03em]">What may work with {audience}</h3><ul className="mt-5 space-y-3">{rating.likelyLikes.map((item) => <li key={item} className="border-l-2 border-[#2d4a3e] pl-4 text-sm leading-6">{item}</li>)}</ul></article>
-          <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7"><h3 className="font-serif text-3xl tracking-[-0.03em]">What may put some {audience} off</h3><ul className="mt-5 space-y-3">{rating.likelyDislikes.map((item) => <li key={item} className="border-l-2 border-[#57477d] pl-4 text-sm leading-6">{item}</li>)}</ul><p className="mt-5 text-xs leading-5 text-[#667168]">{audience === "women" ? "Women" : "Men"} are not a single audience. These are possible reactions to this photo, not facts about every viewer.</p></article>
+          <article className="rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7"><h3 className="font-serif text-3xl tracking-[-0.03em]">What may put some {audience} off</h3><ul className="mt-5 space-y-3">{rating.likelyDislikes.map((item) => <li key={item} className="border-l-2 border-[#57477d] pl-4 text-sm leading-6">{item}</li>)}</ul><p className="mt-5 text-xs leading-5 text-[#667168]">{audienceSentenceStart} are not a single audience. These are possible reactions to this photo, not facts about every viewer.</p></article>
         </div>}
 
         {rating && <section className="mt-5 rounded-[1.7rem] border border-[#20251f]/10 bg-white p-7 sm:p-8"><p className="text-sm font-semibold text-[#57477d]">Your visual type · tentative from one photo</p><div className="mt-5 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-[#f4f0e7] p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#776b59]">Face shape</p><p className="mt-2 text-sm leading-6">{rating.appearanceProfile.faceShape}</p></div><div className="rounded-2xl bg-[#f4f0e7] p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#776b59]">Body silhouette</p><p className="mt-2 text-sm leading-6">{rating.appearanceProfile.bodySilhouette}</p></div><div className="rounded-2xl bg-[#f4f0e7] p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#776b59]">Colour direction</p><p className="mt-2 text-sm leading-6">{rating.appearanceProfile.colourDirection}</p></div><div className="rounded-2xl bg-[#f4f0e7] p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#776b59]">Hair direction</p><p className="mt-2 text-sm leading-6">{rating.appearanceProfile.hairDirection}</p></div></div><p className="mt-4 text-xs leading-5 text-[#667168]">Camera angle, loose clothing and lighting can distort face shape, silhouette and colour. Treat these as ideas to test, not fixed labels.</p></section>}

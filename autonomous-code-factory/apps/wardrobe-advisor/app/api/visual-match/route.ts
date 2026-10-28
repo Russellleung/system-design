@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     return errorResponse("Please upload a JPEG, PNG or WebP image.", 400, requestId);
   }
   if (typeof subjectMode !== "string" || !visualMatchSubjectModes.includes(subjectMode as VisualMatchSubjectMode)) {
-    return errorResponse("Choose whether the source photo shows a man or a woman.", 400, requestId);
+    return errorResponse("Choose AI chooses, Photo: man or Photo: woman.", 400, requestId);
   }
   if (image.size > 10 * 1024 * 1024) {
     return errorResponse("Please choose an image under 10 MB.", 413, requestId);
