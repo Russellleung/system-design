@@ -144,6 +144,9 @@ Updated: 2026-10-27T21:02:00+08:00
 | `a3096bf` | Render | deploy `dep-dbgaag4s728c73dr5q6g` | Live; transparency recomposition removed |
 | `5c9ff43` | Render | deploy `dep-dbgac46k1f9s73bqb58g` | Live |
 | `5c9ff43` | Render public API | Synthetic generated couple submitted to `/api/visual-match-summary` | Passed; HTTP 200 with complete structured analysis that candidly identified a presentation mismatch |
+| `f1460dc` | Local Node 23 / Docker Node 22 | ESLint and portable production build after adding source-person calibration | Passed |
+| `f1460dc` | Render | deploy `dep-dbglqron74is73crg9pg` | Live |
+| `f1460dc` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me`, `/visual-match` and `/digital-twin` smoke tests | Passed |
 
 ## Live resources
 
@@ -153,4 +156,4 @@ Updated: 2026-10-27T21:02:00+08:00
 
 ## Next action
 
-Regenerate the user's couple photo to verify that the transparency seam is gone, then use the new summary to assess attractiveness balance and realism. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
+Regenerate the user's couple photo to evaluate the new calibrated attractiveness target. Confirm whether the one-point downward compensation offsets the image model's beauty bias without making the generated partner implausibly mismatched; tune only from repeated real-photo results. Separately, complete the outstanding Rate Me phone crop, generated-search and Digital Twin persistence/export/clear checks.
