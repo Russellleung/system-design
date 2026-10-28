@@ -6,6 +6,8 @@ import {
   VisualMatchProviderError,
   visualMatchOptions,
 } from "@/lib/visual-match";
+import { analyseVisualMatchProfile, parseVisualMatchProfile } from "@/lib/visual-match-profile";
+import { selectedVisionProvider, VisionProviderError } from "@/lib/vision-analysis";
 
 export const runtime = "nodejs";
 
@@ -59,12 +61,21 @@ export async function POST(request: Request) {
   try {
     const imageBase64 = Buffer.from(await image.arrayBuffer()).toString("base64");
     const maskBase64 = Buffer.from(await mask.arrayBuffer()).toString("base64");
-    const result = await generateVisualMatch(imageBase64, image.type, maskBase64, outputSize, selections);
+    const profileResult = await analyseVisualMatchProfile(imageBase64, image.type);
+    if (!profileResult.outputText) return errorResponse("The source-photo calibration returned no result. Please retry.", 502, requestId);
+    const profile = parseVisualMatchProfile(profileResult.outputText);
+    if (!profile) return errorResponse("The source-photo calibration was incomplete. Please retry.", 502, requestId);
+    const result = await generateVisualMatch(imageBase64, image.type, maskBase64, outputSize, selections, profile);
     return NextResponse.json(
       { imageBase64: result.imageBase64, mimeType: result.mimeType },
       { headers: { "X-Request-ID": requestId, "Cache-Control": "no-store" } },
     );
   } catch (error) {
+    if (error instanceof VisionProviderError) {
+      console.error(JSON.stringify({ event: "visual_match_profile_provider_error", requestId, selectedProvider: selectedVisionProvider(), ...error.details }));
+      const configurationError = error.details.providerCode?.startsWith("missing_") || error.details.providerCode === "unsupported_vision_provider";
+      return errorResponse(error.message, configurationError || error.details.providerStatus === 429 ? 503 : error.details.providerStatus ? 502 : 504, requestId);
+    }
     if (error instanceof VisualMatchProviderError) {
       console.error(JSON.stringify({ event: "visual_match_provider_error", requestId, selectedProvider: selectedVisualMatchProvider(), ...error.details }));
       const configurationError = error.details.providerCode?.startsWith("missing_");

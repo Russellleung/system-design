@@ -1,3 +1,6 @@
+import type { VisualMatchProfile } from "@/lib/visual-match-profile";
+import { visualMatchProfilePrompt } from "@/lib/visual-match-profile";
+
 export const visualMatchOptions = {
   height: ["ai", "very-tall", "tall", "similar", "short", "very-short"],
   build: ["ai", "slim", "average", "athletic", "muscular", "curvy", "plus-size"],
@@ -65,13 +68,15 @@ function selectionInstruction(key: keyof VisualMatchSelections, value: string) {
   return `${labels[key]}: ${words(value)}`;
 }
 
-export function buildVisualMatchPrompt(selections: VisualMatchSelections) {
+export function buildVisualMatchPrompt(selections: VisualMatchSelections, profile: VisualMatchProfile) {
   const chosen = (Object.entries(selections) as [keyof VisualMatchSelections, string][])
     .map(([key, value]) => selectionInstruction(key, value))
     .filter(Boolean)
     .join("; ");
 
   return `Edit only the transparent area in the supplied mask. Add exactly one fictional adult woman ${selections.placement === "right" ? "on the right side of the frame" : "on the left side of the frame"} so the result looks like an ordinary, candid photograph of two real adults together—not a dating advertisement, fashion shoot, travel campaign or idealised stock photo.
+
+${visualMatchProfilePrompt(profile)}
 
 ABSOLUTE PRESERVATION RULE: do not modify anything in the opaque, protected part of the mask. Keep the original person exactly recognizable and unchanged: same face, expression, eyes, nose, mouth, jaw, skin texture, hair, body shape, pose, hands, clothes and accessories. This preservation rule also applies if any part of the original person accidentally extends into the transparent edit area. Never erase, crop, cover, replace, obscure or leave headless either person. Both people must have one complete, naturally connected head and face. Keep the protected environment unchanged: same background, objects, framing, crop, camera angle, perspective, lighting, shadows, colour grade, sharpness and resolution. Do not beautify, redraw, retouch, reshape, relight, move, age, de-age, replace or restyle the original person. If preservation conflicts with a requested pose or there is limited space, preserve the source person and make the added partner smaller or simplify her pose instead.
 
@@ -94,6 +99,7 @@ async function generateWithOpenAI(
   maskBase64: string,
   outputSize: string,
   selections: VisualMatchSelections,
+  profile: VisualMatchProfile,
 ): Promise<GeneratedVisualMatch> {
   const provider = "openai" as const;
   const model = process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-2.5-sunburst";
@@ -109,7 +115,7 @@ async function generateWithOpenAI(
   const extension = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
   const form = new FormData();
   form.append("model", model);
-  form.append("prompt", buildVisualMatchPrompt(selections));
+  form.append("prompt", buildVisualMatchPrompt(selections, profile));
   form.append("image", new Blob([imageBytes], { type: mimeType }), `portrait.${extension}`);
   form.append("mask", new Blob([maskBytes], { type: "image/png" }), "edit-mask.png");
   form.append("quality", process.env.OPENAI_IMAGE_QUALITY ?? "high");
@@ -211,6 +217,7 @@ async function generateWithGemini(
   imageBase64: string,
   mimeType: string,
   selections: VisualMatchSelections,
+  profile: VisualMatchProfile,
 ): Promise<GeneratedVisualMatch> {
   const provider = "gemini" as const;
   const model = process.env.GEMINI_IMAGE_MODEL;
@@ -241,7 +248,7 @@ async function generateWithGemini(
       body: JSON.stringify({
         model,
         input: [
-          { type: "text", text: buildVisualMatchPrompt(selections) },
+          { type: "text", text: buildVisualMatchPrompt(selections, profile) },
           { type: "image", data: imageBase64, mime_type: mimeType },
         ],
         response_format: {
@@ -307,6 +314,7 @@ async function generateWithCloudflare(
   imageBase64: string,
   mimeType: string,
   selections: VisualMatchSelections,
+  profile: VisualMatchProfile,
 ): Promise<GeneratedVisualMatch> {
   const provider = "cloudflare" as const;
   const model = process.env.CLOUDFLARE_IMAGE_MODEL ?? "@cf/black-forest-labs/flux-2-klein-4b";
@@ -321,7 +329,7 @@ async function generateWithCloudflare(
 
   const imageBytes = Uint8Array.from(Buffer.from(imageBase64, "base64"));
   const form = new FormData();
-  form.append("prompt", buildVisualMatchPrompt(selections));
+  form.append("prompt", buildVisualMatchPrompt(selections, profile));
   form.append("input_image_0", new Blob([imageBytes], { type: mimeType }), "portrait.jpg");
   form.append("width", "1024");
   form.append("height", "1280");
@@ -397,9 +405,10 @@ export function generateVisualMatch(
   maskBase64: string,
   outputSize: string,
   selections: VisualMatchSelections,
+  profile: VisualMatchProfile,
 ) {
   const provider = selectedVisualMatchProvider();
-  if (provider === "gemini") return generateWithGemini(imageBase64, mimeType, selections);
-  if (provider === "cloudflare") return generateWithCloudflare(imageBase64, mimeType, selections);
-  return generateWithOpenAI(imageBase64, mimeType, maskBase64, outputSize, selections);
+  if (provider === "gemini") return generateWithGemini(imageBase64, mimeType, selections, profile);
+  if (provider === "cloudflare") return generateWithCloudflare(imageBase64, mimeType, selections, profile);
+  return generateWithOpenAI(imageBase64, mimeType, maskBase64, outputSize, selections, profile);
 }
