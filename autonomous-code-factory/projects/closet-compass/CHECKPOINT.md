@@ -147,6 +147,9 @@ Updated: 2026-10-27T21:02:00+08:00
 | `f1460dc` | Local Node 23 / Docker Node 22 | ESLint and portable production build after adding source-person calibration | Passed |
 | `f1460dc` | Render | deploy `dep-dbglqron74is73crg9pg` | Live |
 | `f1460dc` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me`, `/visual-match` and `/digital-twin` smoke tests | Passed |
+| `fa204cb` | Local Node 23 / Docker Node 22 | ESLint and portable production build for explicit man/woman modes in Rate Me and Visual Match | Passed |
+| `fa204cb` | Render | deploy `dep-dbgn6rh42hec73di6n4g` | Live |
+| `fa204cb` | Render public URL | `/api/health`, `/`, `/photo-coach`, `/rate-me`, `/visual-match` and `/digital-twin` smoke tests | Passed |
 
 ## Live resources
 
