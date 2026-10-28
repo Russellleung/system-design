@@ -264,8 +264,8 @@ export default function VisualMatchPage() {
         <div className="mt-7 flex flex-wrap gap-3"><button onClick={() => cameraInput.current?.click()} className="flex items-center gap-2 rounded-full bg-[#9f3d61] px-5 py-3 font-semibold text-white"><Camera size={17}/> Take photo</button><button onClick={() => libraryInput.current?.click()} className="flex items-center gap-2 rounded-full bg-white px-5 py-3 font-semibold text-[#7d2f4c]"><ImagePlus size={17}/> Choose photo</button></div>
       </div>}
 
-      {preview && <div className="mt-10 grid gap-6 lg:grid-cols-[.92fr_1.08fr]">
-        <div>
+      {preview && <div className="mt-10 grid gap-6 lg:grid-cols-[minmax(0,.92fr)_minmax(0,1.08fr)]">
+        <div className="min-w-0">
           <div className="relative min-h-[520px] overflow-hidden rounded-[2rem] bg-[#282126]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={result ?? preview} alt={result ? "AI-generated visual match" : "Selected source portrait"} className="absolute inset-0 h-full w-full object-contain"/>
@@ -281,7 +281,7 @@ export default function VisualMatchPage() {
           </div>}
         </div>
 
-        <div className="rounded-[2rem] bg-[#fffdf9] p-6 shadow-sm ring-1 ring-black/5 sm:p-8">
+        <div className="min-w-0 rounded-[2rem] bg-[#fffdf9] p-6 shadow-sm ring-1 ring-black/5 sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.17em] text-[#9f3d61]">Creative direction</p><h2 className="mt-2 font-serif text-4xl tracking-[-0.035em]">Who stands beside you?</h2></div>{tuning && <button onClick={useAiChoices} className="flex items-center gap-2 rounded-full border border-[#20251f]/15 px-4 py-2 text-sm font-semibold"><Sparkles size={15}/> Reset to AI</button>}</div>
           <div className="mt-6 grid grid-cols-2 rounded-2xl bg-[#f3e6eb] p-1"><button onClick={useAiChoices} className={`rounded-xl px-4 py-3 text-sm font-bold ${!tuning ? "bg-[#9f3d61] text-white" : "text-[#754257]"}`}>AI chooses</button><button onClick={() => setTuning(true)} className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold ${tuning ? "bg-[#9f3d61] text-white" : "text-[#754257]"}`}><SlidersHorizontal size={15}/> Tune it</button></div>
 
